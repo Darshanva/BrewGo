@@ -1,22 +1,31 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: BrewGo - Beverage ordering platform for Bangalore cafes
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: cafes
+    description: Cafe operations
+  - name: menu
+    description: Menu item operations
+  - name: orders
+    description: Order operations
+  - name: reviews
+    description: Review operations
+  - name: discovery
+    description: Discovery and search operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +33,611 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /cafes:
+    get:
+      operationId: listCafes
+      tags: [cafes]
+      summary: List cafes with optional filters
+      parameters:
+        - name: area
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [rating, deliveryTime, popularity]
+      responses:
+        "200":
+          description: List of cafes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Cafe"
+    post:
+      operationId: createCafe
+      tags: [cafes]
+      summary: Create a cafe (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CafeInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cafe"
+
+  /cafes/{id}:
+    get:
+      operationId: getCafe
+      tags: [cafes]
+      summary: Get a single cafe
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Cafe details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cafe"
+        "404":
+          description: Not found
+
+  /cafes/{id}/menu:
+    get:
+      operationId: getCafeMenu
+      tags: [menu]
+      summary: Get menu items for a cafe
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Menu items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MenuItem"
+
+  /cafes/{id}/reviews:
+    get:
+      operationId: getCafeReviews
+      tags: [reviews]
+      summary: Get reviews for a cafe
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reviews
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Review"
+    post:
+      operationId: createReview
+      tags: [reviews]
+      summary: Post a review for a cafe
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewInput"
+      responses:
+        "201":
+          description: Created review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+
+  /menu-items:
+    get:
+      operationId: searchMenuItems
+      tags: [menu]
+      summary: Search menu items across all cafes
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Menu items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MenuItem"
+
+  /orders:
+    get:
+      operationId: listOrders
+      tags: [orders]
+      summary: List orders for a session/user
+      responses:
+        "200":
+          description: Orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Place a new order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderInput"
+      responses:
+        "201":
+          description: Created order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /orders/{id}:
+    get:
+      operationId: getOrder
+      tags: [orders]
+      summary: Get order details with live status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "404":
+          description: Not found
+
+  /orders/{id}/status:
+    patch:
+      operationId: updateOrderStatus
+      tags: [orders]
+      summary: Update order status (for simulation)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderStatusUpdate"
+      responses:
+        "200":
+          description: Updated order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /discovery/featured:
+    get:
+      operationId: getFeatured
+      tags: [discovery]
+      summary: Get featured cafes, banners, and offers
+      responses:
+        "200":
+          description: Featured content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeaturedContent"
+
+  /discovery/areas:
+    get:
+      operationId: listAreas
+      tags: [discovery]
+      summary: List Bangalore areas with cafe counts
+      responses:
+        "200":
+          description: Areas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Area"
+
+  /discovery/categories:
+    get:
+      operationId: listCategories
+      tags: [discovery]
+      summary: List beverage categories with counts
+      responses:
+        "200":
+          description: Categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+
+  /discovery/trending:
+    get:
+      operationId: getTrending
+      tags: [discovery]
+      summary: Get trending items and top cafes this week
+      responses:
+        "200":
+          description: Trending content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrendingContent"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    Cafe:
+      type: object
+      required: [id, name, area, address, rating, deliveryTime, deliveryFee, minOrder, imageUrl, categories, isOpen, totalOrders]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        area:
+          type: string
+        address:
+          type: string
+        rating:
+          type: number
+        reviewCount:
+          type: integer
+        deliveryTime:
+          type: integer
+          description: Estimated delivery time in minutes
+        deliveryFee:
+          type: number
+        minOrder:
+          type: number
+        imageUrl:
+          type: string
+        categories:
+          type: array
+          items:
+            type: string
+        isOpen:
+          type: boolean
+        totalOrders:
+          type: integer
+        isFeatured:
+          type: boolean
+        discount:
+          type: ["string", "null"]
+          description: e.g. "20% off on first order"
+        latitude:
+          type: ["number", "null"]
+        longitude:
+          type: ["number", "null"]
+
+    CafeInput:
+      type: object
+      required: [name, area, address, deliveryTime, deliveryFee, minOrder, imageUrl, categories]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        area:
+          type: string
+        address:
+          type: string
+        deliveryTime:
+          type: integer
+        deliveryFee:
+          type: number
+        minOrder:
+          type: number
+        imageUrl:
+          type: string
+        categories:
+          type: array
+          items:
+            type: string
+        isFeatured:
+          type: boolean
+        discount:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+
+    MenuItem:
+      type: object
+      required: [id, cafeId, cafeName, name, price, category, imageUrl, isAvailable, isVeg]
+      properties:
+        id:
+          type: integer
+        cafeId:
+          type: integer
+        cafeName:
+          type: string
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        price:
+          type: number
+        category:
+          type: string
+          enum: [coffee, tea, smoothie, mojito, beverage]
+        imageUrl:
+          type: string
+        isAvailable:
+          type: boolean
+        isVeg:
+          type: boolean
+        isBestseller:
+          type: boolean
+        customizations:
+          type: ["string", "null"]
+          description: JSON string of customization options
+
+    Review:
+      type: object
+      required: [id, cafeId, rating, comment, reviewerName, createdAt]
+      properties:
+        id:
+          type: integer
+        cafeId:
+          type: integer
+        rating:
+          type: number
+        comment:
+          type: string
+        reviewerName:
+          type: string
+        createdAt:
+          type: string
+
+    ReviewInput:
+      type: object
+      required: [rating, comment, reviewerName]
+      properties:
+        rating:
+          type: number
+        comment:
+          type: string
+        reviewerName:
+          type: string
+
+    OrderItem:
+      type: object
+      required: [menuItemId, name, price, quantity, imageUrl]
+      properties:
+        menuItemId:
+          type: integer
+        name:
+          type: string
+        price:
+          type: number
+        quantity:
+          type: integer
+        imageUrl:
+          type: string
+        customization:
+          type: ["string", "null"]
+
+    Order:
+      type: object
+      required: [id, cafeId, cafeName, items, status, subtotal, deliveryFee, total, deliveryAddress, estimatedTime, createdAt]
+      properties:
+        id:
+          type: integer
+        cafeId:
+          type: integer
+        cafeName:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItem"
+        status:
+          type: string
+          enum: [placed, confirmed, preparing, out_for_delivery, delivered, cancelled]
+        subtotal:
+          type: number
+        deliveryFee:
+          type: number
+        total:
+          type: number
+        deliveryAddress:
+          type: string
+        estimatedTime:
+          type: integer
+          description: Estimated delivery time remaining in minutes
+        createdAt:
+          type: string
+        updatedAt:
+          type: ["string", "null"]
+
+    OrderInput:
+      type: object
+      required: [cafeId, items, deliveryAddress]
+      properties:
+        cafeId:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItemInput"
+        deliveryAddress:
+          type: string
+
+    OrderItemInput:
+      type: object
+      required: [menuItemId, quantity]
+      properties:
+        menuItemId:
+          type: integer
+        quantity:
+          type: integer
+        customization:
+          type: string
+
+    OrderStatusUpdate:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [placed, confirmed, preparing, out_for_delivery, delivered, cancelled]
+
+    FeaturedContent:
+      type: object
+      required: [banners, featuredCafes, offers]
+      properties:
+        banners:
+          type: array
+          items:
+            $ref: "#/components/schemas/Banner"
+        featuredCafes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Cafe"
+        offers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Offer"
+
+    Banner:
+      type: object
+      required: [id, title, subtitle, imageUrl, color]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        subtitle:
+          type: string
+        imageUrl:
+          type: string
+        color:
+          type: string
+        ctaText:
+          type: ["string", "null"]
+
+    Offer:
+      type: object
+      required: [id, title, code, discount, description]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        code:
+          type: string
+        discount:
+          type: string
+        description:
+          type: string
+
+    Area:
+      type: object
+      required: [name, cafeCount]
+      properties:
+        name:
+          type: string
+        cafeCount:
+          type: integer
+        imageUrl:
+          type: ["string", "null"]
+
+    Category:
+      type: object
+      required: [name, slug, itemCount, imageUrl]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        itemCount:
+          type: integer
+        imageUrl:
+          type: string
+
+    TrendingContent:
+      type: object
+      required: [topCafes, popularItems]
+      properties:
+        topCafes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Cafe"
+        popularItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/MenuItem"

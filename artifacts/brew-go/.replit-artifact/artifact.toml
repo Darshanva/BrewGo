@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "BrewGo"
+version = "1.0.0"
+id = "artifacts/brew-go"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22663
+
+[services.development]
+run = "pnpm --filter @workspace/brew-go run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/brew-go", "run", "build" ]
+publicDir = "artifacts/brew-go/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22663"
+BASE_PATH = "/"

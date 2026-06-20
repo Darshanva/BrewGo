@@ -1,0 +1,1 @@
+- [BrewGo stack and constraints](brewgo-stack.md) — contract-first pnpm monorepo; Orval collision fix; categories as JSON text; numeric decimals need Number() parse
