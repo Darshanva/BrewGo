@@ -197,7 +197,10 @@ export const ListOrdersResponseItem = zod.object({
   "status": zod.enum(['placed', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled']),
   "subtotal": zod.number(),
   "deliveryFee": zod.number(),
+  "discount": zod.number().optional().describe('Points redemption discount applied to this order'),
   "total": zod.number(),
+  "pointsRedeemed": zod.number().optional().describe('BrewPoints redeemed on this order'),
+  "pointsEarned": zod.number().optional().describe('BrewPoints earned on this order'),
   "deliveryAddress": zod.string(),
   "estimatedTime": zod.number().describe('Estimated delivery time remaining in minutes'),
   "createdAt": zod.string(),
@@ -209,6 +212,10 @@ export const ListOrdersResponse = zod.array(ListOrdersResponseItem)
 /**
  * @summary Place a new order
  */
+export const createOrderBodyPointsToRedeemMin = 0;
+
+
+
 export const CreateOrderBody = zod.object({
   "cafeId": zod.number(),
   "items": zod.array(zod.object({
@@ -216,7 +223,8 @@ export const CreateOrderBody = zod.object({
   "quantity": zod.number(),
   "customization": zod.string().optional()
 })),
-  "deliveryAddress": zod.string()
+  "deliveryAddress": zod.string(),
+  "pointsToRedeem": zod.number().min(createOrderBodyPointsToRedeemMin).optional().describe('BrewPoints to redeem (100 pts = ₹10 discount)')
 })
 
 
@@ -242,7 +250,10 @@ export const GetOrderResponse = zod.object({
   "status": zod.enum(['placed', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled']),
   "subtotal": zod.number(),
   "deliveryFee": zod.number(),
+  "discount": zod.number().optional().describe('Points redemption discount applied to this order'),
   "total": zod.number(),
+  "pointsRedeemed": zod.number().optional().describe('BrewPoints redeemed on this order'),
+  "pointsEarned": zod.number().optional().describe('BrewPoints earned on this order'),
   "deliveryAddress": zod.string(),
   "estimatedTime": zod.number().describe('Estimated delivery time remaining in minutes'),
   "createdAt": zod.string(),
@@ -276,7 +287,10 @@ export const UpdateOrderStatusResponse = zod.object({
   "status": zod.enum(['placed', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled']),
   "subtotal": zod.number(),
   "deliveryFee": zod.number(),
+  "discount": zod.number().optional().describe('Points redemption discount applied to this order'),
   "total": zod.number(),
+  "pointsRedeemed": zod.number().optional().describe('BrewPoints redeemed on this order'),
+  "pointsEarned": zod.number().optional().describe('BrewPoints earned on this order'),
   "deliveryAddress": zod.string(),
   "estimatedTime": zod.number().describe('Estimated delivery time remaining in minutes'),
   "createdAt": zod.string(),

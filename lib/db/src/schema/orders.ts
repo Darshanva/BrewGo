@@ -15,6 +15,8 @@ export const ordersTable = pgTable("orders", {
   deliveryAddress: text("delivery_address").notNull(),
   estimatedTime: integer("estimated_time").notNull().default(30),
   pointsEarned: integer("points_earned").default(0),
+  pointsRedeemed: integer("points_redeemed").default(0),
+  discount: numeric("discount", { precision: 10, scale: 2 }).default("0"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at"),
 });

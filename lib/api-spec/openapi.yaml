@@ -652,8 +652,17 @@ components:
           type: number
         deliveryFee:
           type: number
+        discount:
+          type: number
+          description: Points redemption discount applied to this order
         total:
           type: number
+        pointsRedeemed:
+          type: integer
+          description: BrewPoints redeemed on this order
+        pointsEarned:
+          type: integer
+          description: BrewPoints earned on this order
         deliveryAddress:
           type: string
         estimatedTime:
@@ -676,6 +685,10 @@ components:
             $ref: "#/components/schemas/OrderItemInput"
         deliveryAddress:
           type: string
+        pointsToRedeem:
+          type: integer
+          minimum: 0
+          description: BrewPoints to redeem (100 pts = ₹10 discount)
 
     OrderItemInput:
       type: object

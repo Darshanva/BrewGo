@@ -22,14 +22,7 @@ function getTierInfo(lifetimePoints: number) {
   };
 }
 
-router.get("/rewards/me", async (req, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-
-  const userId = req.user.id;
-
+async function getOrCreateRewards(userId: string) {
   let [rewards] = await db
     .select()
     .from(userRewardsTable)
@@ -41,6 +34,17 @@ router.get("/rewards/me", async (req, res): Promise<void> => {
       .values({ userId, totalPoints: 0, lifetimePoints: 0, tier: "Bronze" })
       .returning();
   }
+  return rewards;
+}
+
+router.get("/rewards/me", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const userId = req.user.id;
+  const rewards = await getOrCreateRewards(userId);
 
   const transactions = await db
     .select()
@@ -68,11 +72,7 @@ router.get("/rewards/me", async (req, res): Promise<void> => {
   });
 });
 
-export async function awardRewardPoints(
-  userId: string,
-  orderId: number,
-  total: number,
-) {
+export async function awardRewardPoints(userId: string, orderId: number, total: number) {
   const points = Math.floor(total / 10);
   if (points <= 0) return;
 
@@ -84,31 +84,40 @@ export async function awardRewardPoints(
     description: `Earned ${points} BrewPoints on order #${orderId}`,
   });
 
-  const [existing] = await db
-    .select()
-    .from(userRewardsTable)
-    .where(eq(userRewardsTable.userId, userId));
+  const rewards = await getOrCreateRewards(userId);
+  const newLifetime = rewards.lifetimePoints + points;
+  const tierInfo = getTierInfo(newLifetime);
 
-  if (existing) {
-    const newLifetime = existing.lifetimePoints + points;
-    const tierInfo = getTierInfo(newLifetime);
-    await db
-      .update(userRewardsTable)
-      .set({
-        totalPoints: existing.totalPoints + points,
-        lifetimePoints: newLifetime,
-        tier: tierInfo.tier,
-      })
-      .where(eq(userRewardsTable.userId, userId));
-  } else {
-    const tierInfo = getTierInfo(points);
-    await db.insert(userRewardsTable).values({
-      userId,
-      totalPoints: points,
-      lifetimePoints: points,
+  await db
+    .update(userRewardsTable)
+    .set({
+      totalPoints: rewards.totalPoints + points,
+      lifetimePoints: newLifetime,
       tier: tierInfo.tier,
-    });
-  }
+    })
+    .where(eq(userRewardsTable.userId, userId));
+}
+
+export async function deductRewardPoints(userId: string, orderId: number, pointsToRedeem: number) {
+  if (pointsToRedeem <= 0) return;
+
+  const rewards = await getOrCreateRewards(userId);
+
+  const actualDeduct = Math.min(pointsToRedeem, rewards.totalPoints);
+  if (actualDeduct <= 0) return;
+
+  await db.insert(rewardTransactionsTable).values({
+    userId,
+    orderId,
+    points: actualDeduct,
+    type: "redeemed",
+    description: `Redeemed ${actualDeduct} BrewPoints on order #${orderId} (₹${(actualDeduct / 10).toFixed(0)} off)`,
+  });
+
+  await db
+    .update(userRewardsTable)
+    .set({ totalPoints: Math.max(0, rewards.totalPoints - actualDeduct) })
+    .where(eq(userRewardsTable.userId, userId));
 }
 
 export default router;

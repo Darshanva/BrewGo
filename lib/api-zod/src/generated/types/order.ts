@@ -16,7 +16,13 @@ export interface Order {
   status: OrderStatus;
   subtotal: number;
   deliveryFee: number;
+  /** Points redemption discount applied to this order */
+  discount?: number;
   total: number;
+  /** BrewPoints redeemed on this order */
+  pointsRedeemed?: number;
+  /** BrewPoints earned on this order */
+  pointsEarned?: number;
   deliveryAddress: string;
   /** Estimated delivery time remaining in minutes */
   estimatedTime: number;

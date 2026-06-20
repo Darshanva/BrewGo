@@ -11,4 +11,9 @@ export interface OrderInput {
   cafeId: number;
   items: OrderItemInput[];
   deliveryAddress: string;
+  /**
+     * BrewPoints to redeem (100 pts = ₹10 discount)
+     * @minimum 0
+     */
+  pointsToRedeem?: number;
 }
