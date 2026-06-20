@@ -210,6 +210,89 @@ export interface TrendingContent {
   popularItems: MenuItem[];
 }
 
+export interface AuthUser {
+  id: string;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  firstName: string | null;
+  /** @nullable */
+  lastName: string | null;
+  /** @nullable */
+  profileImageUrl: string | null;
+}
+
+export interface AuthUserEnvelope {
+  user: AuthUser | null;
+}
+
+export interface MobileTokenExchangeRequest {
+  /** @minLength 1 */
+  code: string;
+  /** @minLength 1 */
+  code_verifier: string;
+  /** @minLength 1 */
+  redirect_uri: string;
+  /** @minLength 1 */
+  state: string;
+  /** @minLength 1 */
+  nonce?: string;
+}
+
+export interface MobileTokenExchangeSuccess {
+  token: string;
+}
+
+export const LogoutSuccessValue = {
+  success: true,
+} as const;
+export type LogoutSuccess = typeof LogoutSuccessValue;
+
+export type RewardTransactionType = typeof RewardTransactionType[keyof typeof RewardTransactionType];
+
+
+export const RewardTransactionType = {
+  earned: 'earned',
+  redeemed: 'redeemed',
+  bonus: 'bonus',
+} as const;
+
+export interface RewardTransaction {
+  id: number;
+  /** @nullable */
+  orderId?: number | null;
+  points: number;
+  type: RewardTransactionType;
+  description: string;
+  createdAt: string;
+}
+
+export type RewardsProfileTier = typeof RewardsProfileTier[keyof typeof RewardsProfileTier];
+
+
+export const RewardsProfileTier = {
+  Bronze: 'Bronze',
+  Silver: 'Silver',
+  Gold: 'Gold',
+  Platinum: 'Platinum',
+} as const;
+
+export interface RewardsProfile {
+  totalPoints: number;
+  lifetimePoints: number;
+  tier: RewardsProfileTier;
+  /** @nullable */
+  nextTier: string | null;
+  /** @nullable */
+  pointsToNextTier: number | null;
+  transactions: RewardTransaction[];
+}
+
+/**
+ * Opaque session token — Bearer <sid>.
+ */
+export type AuthorizationSessionHeaderParameter = string;
+
 export type ListCafesParams = {
 area?: string;
 category?: string;
@@ -229,5 +312,14 @@ export const ListCafesSortBy = {
 export type SearchMenuItemsParams = {
 q?: string;
 category?: string;
+};
+
+export type BeginBrowserLoginParams = {
+returnTo?: string;
+};
+
+export type HandleBrowserLoginCallbackParams = {
+code?: string;
+state?: string;
 };
 

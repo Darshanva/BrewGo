@@ -80,13 +80,15 @@ router.post("/cafes", async (req, res): Promise<void> => {
     return;
   }
 
-  const { categories, latitude, longitude, ...rest } = parsed.data;
+  const { categories, latitude, longitude, deliveryFee, minOrder, ...rest } = parsed.data;
 
   const [cafe] = await db.insert(cafesTable).values({
     ...rest,
     categories: JSON.stringify(categories || []),
     latitude: latitude?.toString(),
     longitude: longitude?.toString(),
+    deliveryFee: deliveryFee.toString(),
+    minOrder: minOrder.toString(),
   }).returning();
 
   res.status(201).json(parseCafe(cafe));

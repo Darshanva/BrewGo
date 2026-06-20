@@ -12,6 +12,7 @@ import Search from "@/pages/search";
 import Cart from "@/pages/cart";
 import Orders from "@/pages/orders";
 import OrderTracking from "@/pages/order-tracking";
+import Profile from "@/pages/profile";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ function Router() {
         <Route path="/cart" component={Cart} />
         <Route path="/orders" component={Orders} />
         <Route path="/orders/:id" component={OrderTracking} />
+        <Route path="/profile" component={Profile} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

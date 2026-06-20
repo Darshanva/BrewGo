@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 export const ordersTable = pgTable("orders", {
   id: serial("id").primaryKey(),
+  userId: text("user_id"),
   cafeId: integer("cafe_id").notNull(),
   cafeName: text("cafe_name").notNull(),
   items: text("items").notNull().default("[]"),
@@ -13,6 +14,7 @@ export const ordersTable = pgTable("orders", {
   total: numeric("total", { precision: 10, scale: 2 }).notNull(),
   deliveryAddress: text("delivery_address").notNull(),
   estimatedTime: integer("estimated_time").notNull().default(30),
+  pointsEarned: integer("points_earned").default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at"),
 });

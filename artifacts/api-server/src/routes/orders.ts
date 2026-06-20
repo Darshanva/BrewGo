@@ -8,6 +8,7 @@ import {
   UpdateOrderStatusParams,
   UpdateOrderStatusBody,
 } from "@workspace/api-zod";
+import { awardRewardPoints } from "./rewards";
 
 const router: IRouter = Router();
 
@@ -23,9 +24,17 @@ function parseOrder(order: typeof ordersTable.$inferSelect) {
   };
 }
 
-router.get("/orders", async (_req, res): Promise<void> => {
-  const orders = await db.select().from(ordersTable).orderBy(ordersTable.createdAt);
-  res.json(orders.map(parseOrder).reverse());
+router.get("/orders", async (req, res): Promise<void> => {
+  if (req.isAuthenticated()) {
+    const orders = await db
+      .select()
+      .from(ordersTable)
+      .where(eq(ordersTable.userId, req.user.id))
+      .orderBy(ordersTable.createdAt);
+    res.json(orders.map(parseOrder).reverse());
+  } else {
+    res.json([]);
+  }
 });
 
 router.post("/orders", async (req, res): Promise<void> => {
@@ -73,8 +82,11 @@ router.post("/orders", async (req, res): Promise<void> => {
 
   const deliveryFee = Number(cafe.deliveryFee);
   const total = subtotal + deliveryFee;
+  const userId = req.isAuthenticated() ? req.user.id : null;
+  const pointsEarned = userId ? Math.floor(total / 10) : 0;
 
   const [order] = await db.insert(ordersTable).values({
+    userId,
     cafeId,
     cafeName: cafe.name,
     items: JSON.stringify(orderItems),
@@ -84,11 +96,16 @@ router.post("/orders", async (req, res): Promise<void> => {
     total: total.toFixed(2),
     deliveryAddress,
     estimatedTime: cafe.deliveryTime,
+    pointsEarned,
   }).returning();
 
   await db.update(cafesTable).set({
     totalOrders: cafe.totalOrders + 1,
   }).where(eq(cafesTable.id, cafeId));
+
+  if (userId && pointsEarned > 0) {
+    await awardRewardPoints(userId, order.id, total);
+  }
 
   res.status(201).json(parseOrder(order));
 });
