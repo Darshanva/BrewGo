@@ -204,7 +204,8 @@ export const ListOrdersResponseItem = zod.object({
   "deliveryAddress": zod.string(),
   "estimatedTime": zod.number().describe('Estimated delivery time remaining in minutes'),
   "createdAt": zod.string(),
-  "updatedAt": zod.string().nullish()
+  "updatedAt": zod.string().nullish(),
+  "tierAchieved": zod.string().nullish().describe('New loyalty tier achieved with this order, if any')
 })
 export const ListOrdersResponse = zod.array(ListOrdersResponseItem)
 
@@ -257,7 +258,8 @@ export const GetOrderResponse = zod.object({
   "deliveryAddress": zod.string(),
   "estimatedTime": zod.number().describe('Estimated delivery time remaining in minutes'),
   "createdAt": zod.string(),
-  "updatedAt": zod.string().nullish()
+  "updatedAt": zod.string().nullish(),
+  "tierAchieved": zod.string().nullish().describe('New loyalty tier achieved with this order, if any')
 })
 
 
@@ -294,7 +296,8 @@ export const UpdateOrderStatusResponse = zod.object({
   "deliveryAddress": zod.string(),
   "estimatedTime": zod.number().describe('Estimated delivery time remaining in minutes'),
   "createdAt": zod.string(),
-  "updatedAt": zod.string().nullish()
+  "updatedAt": zod.string().nullish(),
+  "tierAchieved": zod.string().nullish().describe('New loyalty tier achieved with this order, if any')
 })
 
 

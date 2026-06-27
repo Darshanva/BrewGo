@@ -8,10 +8,11 @@ import {
   UpdateOrderStatusBody,
 } from "@workspace/api-zod";
 import { awardRewardPoints, deductRewardPoints } from "./rewards";
+import { emitOrderUpdate, onOrderUpdate } from "../lib/sse";
 
 const router: IRouter = Router();
 
-function parseOrder(order: typeof ordersTable.$inferSelect) {
+function parseOrder(order: typeof ordersTable.$inferSelect, extra?: Record<string, unknown>) {
   return {
     ...order,
     items: JSON.parse(order.items || "[]"),
@@ -23,6 +24,8 @@ function parseOrder(order: typeof ordersTable.$inferSelect) {
     pointsRedeemed: order.pointsRedeemed ?? 0,
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt ? order.updatedAt.toISOString() : null,
+    tierAchieved: null as string | null,
+    ...extra,
   };
 }
 
@@ -33,7 +36,7 @@ router.get("/orders", async (req, res): Promise<void> => {
       .from(ordersTable)
       .where(eq(ordersTable.userId, req.user.id))
       .orderBy(ordersTable.createdAt);
-    res.json(orders.map(parseOrder).reverse());
+    res.json(orders.map((o) => parseOrder(o)).reverse());
   } else {
     res.json([]);
   }
@@ -85,7 +88,6 @@ router.post("/orders", async (req, res): Promise<void> => {
   const deliveryFee = Number(cafe.deliveryFee);
   const userId = req.isAuthenticated() ? req.user.id : null;
 
-  // Validate and cap points redemption (100 pts = ₹10 discount)
   let actualPointsToRedeem = 0;
   let discount = 0;
 
@@ -96,10 +98,9 @@ router.post("/orders", async (req, res): Promise<void> => {
         .select()
         .from(userRewardsTable)
         .where(eq(userRewardsTable.userId, userId));
-
       const availablePoints = rewardRow?.totalPoints ?? 0;
       actualPointsToRedeem = Math.min(validPoints, availablePoints);
-      discount = actualPointsToRedeem / 10; // 100 pts = ₹10
+      discount = actualPointsToRedeem / 10;
     }
   }
 
@@ -122,20 +123,49 @@ router.post("/orders", async (req, res): Promise<void> => {
     pointsRedeemed: actualPointsToRedeem,
   }).returning();
 
-  await db.update(cafesTable).set({
-    totalOrders: cafe.totalOrders + 1,
-  }).where(eq(cafesTable.id, cafeId));
+  await db.update(cafesTable).set({ totalOrders: cafe.totalOrders + 1 }).where(eq(cafesTable.id, cafeId));
 
+  let tierAchieved: string | null = null;
   if (userId) {
     if (actualPointsToRedeem > 0) {
       await deductRewardPoints(userId, order.id, actualPointsToRedeem);
     }
     if (pointsEarned > 0) {
-      await awardRewardPoints(userId, order.id, total);
+      const result = await awardRewardPoints(userId, order.id, total);
+      tierAchieved = result.tierAchieved;
     }
   }
 
-  res.status(201).json(parseOrder(order));
+  res.status(201).json(parseOrder(order, { tierAchieved }));
+});
+
+// SSE stream for real-time order status updates
+router.get("/orders/:id/stream", (req, res): void => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).end();
+    return;
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  // Send heartbeat every 20s to keep connection alive through proxies
+  const heartbeat = setInterval(() => {
+    res.write(": ping\n\n");
+  }, 20000);
+
+  const cleanup = onOrderUpdate(id, (data) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  });
+
+  req.on("close", () => {
+    clearInterval(heartbeat);
+    cleanup();
+  });
 });
 
 router.get("/orders/:id", async (req, res): Promise<void> => {
@@ -179,6 +209,12 @@ router.patch("/orders/:id/status", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Order not found" });
     return;
   }
+
+  // Broadcast real-time update to all SSE listeners for this order
+  emitOrderUpdate(order.id, {
+    status: order.status,
+    updatedAt: order.updatedAt?.toISOString() ?? null,
+  });
 
   res.json(parseOrder(order));
 });

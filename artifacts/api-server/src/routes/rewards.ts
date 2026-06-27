@@ -72,9 +72,16 @@ router.get("/rewards/me", async (req, res): Promise<void> => {
   });
 });
 
-export async function awardRewardPoints(userId: string, orderId: number, total: number) {
+export async function awardRewardPoints(
+  userId: string,
+  orderId: number,
+  total: number,
+): Promise<{ tierAchieved: string | null }> {
   const points = Math.floor(total / 10);
-  if (points <= 0) return;
+  if (points <= 0) return { tierAchieved: null };
+
+  const rewards = await getOrCreateRewards(userId);
+  const previousTier = rewards.tier;
 
   await db.insert(rewardTransactionsTable).values({
     userId,
@@ -84,7 +91,6 @@ export async function awardRewardPoints(userId: string, orderId: number, total: 
     description: `Earned ${points} BrewPoints on order #${orderId}`,
   });
 
-  const rewards = await getOrCreateRewards(userId);
   const newLifetime = rewards.lifetimePoints + points;
   const tierInfo = getTierInfo(newLifetime);
 
@@ -96,13 +102,15 @@ export async function awardRewardPoints(userId: string, orderId: number, total: 
       tier: tierInfo.tier,
     })
     .where(eq(userRewardsTable.userId, userId));
+
+  const tierAchieved = tierInfo.tier !== previousTier ? tierInfo.tier : null;
+  return { tierAchieved };
 }
 
 export async function deductRewardPoints(userId: string, orderId: number, pointsToRedeem: number) {
   if (pointsToRedeem <= 0) return;
 
   const rewards = await getOrCreateRewards(userId);
-
   const actualDeduct = Math.min(pointsToRedeem, rewards.totalPoints);
   if (actualDeduct <= 0) return;
 

@@ -143,6 +143,11 @@ export interface Order {
   createdAt: string;
   /** @nullable */
   updatedAt?: string | null;
+  /**
+     * New loyalty tier achieved with this order, if any
+     * @nullable
+     */
+  tierAchieved?: string | null;
 }
 
 export interface OrderItemInput {

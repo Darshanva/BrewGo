@@ -672,6 +672,9 @@ components:
           type: string
         updatedAt:
           type: ["string", "null"]
+        tierAchieved:
+          type: ["string", "null"]
+          description: New loyalty tier achieved with this order, if any
 
     OrderInput:
       type: object

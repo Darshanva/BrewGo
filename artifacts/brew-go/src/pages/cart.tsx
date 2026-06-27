@@ -1,7 +1,12 @@
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useCart } from "@/lib/cart-context";
-import { useCreateOrder, getListOrdersQueryKey, useGetMyRewards, getGetMyRewardsQueryKey } from "@workspace/api-client-react";
+import {
+  useCreateOrder,
+  getListOrdersQueryKey,
+  useGetMyRewards,
+  getGetMyRewardsQueryKey,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@workspace/replit-auth-web";
 import { ShoppingBag, Plus, Minus, Trash2, MapPin, ChevronRight, Gift, Star } from "lucide-react";
@@ -17,6 +22,12 @@ const BANGALORE_ADDRESSES = [
   "ITPL Main Road, Whitefield, Bangalore 560066",
   "MG Road, Bangalore 560001",
 ];
+
+const TIER_MESSAGES: Record<string, { emoji: string; msg: string }> = {
+  Silver:   { emoji: "🥈", msg: "You've hit Silver status! Enjoy 2× BrewPoints on your next order." },
+  Gold:     { emoji: "🥇", msg: "Gold tier unlocked! Exclusive perks are now yours." },
+  Platinum: { emoji: "💎", msg: "PLATINUM! You're a BrewGo legend. Maximum rewards await." },
+};
 
 export default function Cart() {
   const { items, removeItem, updateQuantity, clearCart, subtotal, cafeId } = useCart();
@@ -40,16 +51,15 @@ export default function Cart() {
   const createOrder = useCreateOrder();
   const deliveryFee = items.length > 0 ? (subtotal >= 299 ? 0 : 39) : 0;
 
-  // Points are redeemable in multiples of 100 (100 pts = ₹10)
+  // Max redeemable: limited by both balance and order value, in steps of 100
   const maxRedeemable = useMemo(() => {
     if (!rewards) return 0;
-    // Can't redeem more than the order total, in steps of 100
     const maxByBalance = Math.floor(rewards.totalPoints / 100) * 100;
     const maxByOrder = Math.floor((subtotal + deliveryFee) / 10) * 100;
     return Math.min(maxByBalance, maxByOrder);
   }, [rewards, subtotal, deliveryFee]);
 
-  const discount = redeemEnabled ? (pointsToRedeem / 10) : 0;
+  const discount = redeemEnabled ? pointsToRedeem / 10 : 0;
   const total = Math.max(0, subtotal + deliveryFee - discount);
   const pointsWillEarn = isAuthenticated ? Math.floor(total / 10) : 0;
 
@@ -81,6 +91,20 @@ export default function Cart() {
           queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetMyRewardsQueryKey() });
           clearCart();
+
+          // Tier achievement toast
+          if (order.tierAchieved && TIER_MESSAGES[order.tierAchieved]) {
+            const { emoji, msg } = TIER_MESSAGES[order.tierAchieved];
+            // Slight delay so the navigation happens first and it overlaps the tracking page
+            setTimeout(() => {
+              toast({
+                title: `${emoji} ${order.tierAchieved} tier achieved!`,
+                description: msg,
+                duration: 6000,
+              });
+            }, 800);
+          }
+
           navigate(`/orders/${order.id}`);
         },
         onError: () => {
@@ -119,7 +143,7 @@ export default function Cart() {
         )}
       </div>
 
-      {/* Cart Items */}
+      {/* Cart items */}
       <div className="px-4 py-4 space-y-3">
         {items.map((item) => (
           <div key={`${item.menuItemId}-${item.customization}`} className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
@@ -148,10 +172,10 @@ export default function Cart() {
         ))}
       </div>
 
-      {/* BrewPoints Redemption — only if logged in and have points */}
+      {/* BrewPoints redemption card */}
       {isAuthenticated && rewards && rewards.totalPoints >= 100 && (
         <div className="mx-4 mb-4 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-amber-400/20 flex items-center justify-center">
                 <Gift className="w-4 h-4 text-amber-600" />
@@ -171,7 +195,7 @@ export default function Cart() {
           {redeemEnabled && maxRedeemable > 0 && (
             <div className="mt-3 pt-3 border-t border-amber-200">
               <div className="flex justify-between items-center mb-3">
-                <span className="text-sm font-semibold text-amber-900">Points to redeem</span>
+                <span className="text-sm font-semibold text-amber-900">Points to use</span>
                 <div className="text-right">
                   <span className="text-lg font-bold text-amber-700">{pointsToRedeem} pts</span>
                   <span className="text-xs text-amber-600 ml-1">= ₹{(pointsToRedeem / 10).toFixed(0)} off</span>
@@ -183,44 +207,39 @@ export default function Cart() {
                 step={100}
                 value={[pointsToRedeem]}
                 onValueChange={([v]) => setPointsToRedeem(v ?? 0)}
-                className="[&_[role=slider]]:bg-amber-500 [&_[role=slider]]:border-amber-500 [&_.relative]:bg-amber-200 [&_[data-orientation=horizontal]>[class*=bg-primary]]:bg-amber-500"
               />
               <div className="flex justify-between text-xs text-amber-600 mt-1.5">
                 <span>0 pts</span>
-                <span>{maxRedeemable} pts</span>
+                <span>{maxRedeemable} pts max</span>
               </div>
             </div>
           )}
 
           {redeemEnabled && maxRedeemable === 0 && (
-            <p className="text-xs text-amber-700 mt-2">
-              Minimum 100 BrewPoints required to redeem on this order.
-            </p>
+            <p className="text-xs text-amber-700 mt-2">Need at least 100 pts to redeem on this order.</p>
           )}
         </div>
       )}
 
-      {/* Not logged in — show sign-in nudge */}
+      {/* Sign-in nudge for guests */}
       {!isAuthenticated && (
         <div className="mx-4 mb-4 bg-muted rounded-2xl p-4 flex items-center gap-3">
           <Star className="w-5 h-5 text-accent shrink-0" />
           <p className="text-sm text-muted-foreground">
-            <a href="/profile" className="font-bold text-foreground hover:underline">Sign in</a> to earn BrewPoints on this order
+            <a href="/profile" className="font-bold text-foreground hover:underline">Sign in</a>{" "}
+            to earn BrewPoints on this order
           </p>
         </div>
       )}
 
-      {/* Delivery Address */}
+      {/* Delivery address */}
       <div className="px-4 py-4 border-t border-border">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <MapPin className="w-5 h-5 text-accent" />
             <h2 className="font-bold">Delivery Address</h2>
           </div>
-          <button
-            onClick={() => setUseCustom(!useCustom)}
-            className="text-xs font-bold text-accent"
-          >
+          <button onClick={() => setUseCustom(!useCustom)} className="text-xs font-bold text-accent">
             {useCustom ? "Choose saved" : "Enter custom"}
           </button>
         </div>
@@ -228,7 +247,7 @@ export default function Cart() {
           <input
             value={customAddress}
             onChange={(e) => setCustomAddress(e.target.value)}
-            placeholder="Enter your full address in Bangalore..."
+            placeholder="Enter your full address in Bangalore…"
             className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary"
           />
         ) : (
@@ -251,7 +270,7 @@ export default function Cart() {
         )}
       </div>
 
-      {/* Order Summary */}
+      {/* Order summary */}
       <div className="px-4 py-4 border-t border-border">
         <h2 className="font-bold mb-3">Order Summary</h2>
         <div className="space-y-2 text-sm">
@@ -283,7 +302,7 @@ export default function Cart() {
           {pointsWillEarn > 0 && (
             <div className="flex items-center gap-1.5 justify-end text-xs text-amber-600 font-semibold">
               <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-              You'll earn {pointsWillEarn} BrewPoints on this order
+              You'll earn {pointsWillEarn} BrewPoints
             </div>
           )}
         </div>
@@ -297,9 +316,8 @@ export default function Cart() {
           className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-2xl text-base hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-xl"
         >
           {createOrder.isPending
-            ? "Placing Order..."
-            : `Place Order • ₹${total.toFixed(0)}${discount > 0 ? ` (₹${discount.toFixed(0)} saved)` : ""}`
-          }
+            ? "Placing Order…"
+            : `Place Order · ₹${total.toFixed(0)}${discount > 0 ? ` (₹${discount.toFixed(0)} saved)` : ""}`}
         </button>
       </div>
     </div>
