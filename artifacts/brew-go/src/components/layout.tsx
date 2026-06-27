@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Coffee, Search, ShoppingBag, Receipt, User } from "lucide-react";
+import { Coffee, Search, ShoppingBag, Receipt, User, LayoutDashboard } from "lucide-react";
 import { useCart } from "@/lib/cart-context";
 import { useAuth } from "@workspace/replit-auth-web";
 
@@ -29,6 +29,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <NavItem href="/search" icon={<Search className="w-5 h-5" />} label="Search" active={location === "/search"} />
           <NavItem href="/orders" icon={<Receipt className="w-5 h-5" />} label="Orders" active={location.startsWith("/orders")} />
           <NavItem href="/profile" icon={<User className="w-5 h-5" />} label="Profile & Rewards" active={location === "/profile"} />
+          <NavItem href="/admin" icon={<LayoutDashboard className="w-5 h-5" />} label="Admin Panel" active={location === "/admin"} />
         </nav>
 
         {/* Auth + Cart */}

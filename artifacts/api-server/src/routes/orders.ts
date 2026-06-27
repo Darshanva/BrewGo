@@ -8,7 +8,7 @@ import {
   UpdateOrderStatusBody,
 } from "@workspace/api-zod";
 import { awardRewardPoints, deductRewardPoints } from "./rewards";
-import { emitOrderUpdate, onOrderUpdate } from "../lib/sse";
+import { emitOrderUpdate, onOrderUpdate, emitNewOrder, emitAdminOrderUpdate } from "../lib/sse";
 
 const router: IRouter = Router();
 
@@ -136,7 +136,9 @@ router.post("/orders", async (req, res): Promise<void> => {
     }
   }
 
-  res.status(201).json(parseOrder(order, { tierAchieved }));
+  const orderPayload = parseOrder(order, { tierAchieved });
+  emitNewOrder(orderPayload);
+  res.status(201).json(orderPayload);
 });
 
 // SSE stream for real-time order status updates
@@ -210,11 +212,15 @@ router.patch("/orders/:id/status", async (req, res): Promise<void> => {
     return;
   }
 
-  // Broadcast real-time update to all SSE listeners for this order
-  emitOrderUpdate(order.id, {
+  const updatePayload = {
+    id: order.id,
     status: order.status,
     updatedAt: order.updatedAt?.toISOString() ?? null,
-  });
+  };
+  // Broadcast to the specific order's SSE listeners (customer tracking page)
+  emitOrderUpdate(order.id, updatePayload);
+  // Broadcast to all admin panel listeners
+  emitAdminOrderUpdate(updatePayload);
 
   res.json(parseOrder(order));
 });
