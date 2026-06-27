@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
-import { desc, notInArray } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { db, ordersTable, cafesTable } from "@workspace/db";
 import { onAdminEvent } from "../lib/sse";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
 
@@ -21,7 +22,7 @@ function parseOrder(order: typeof ordersTable.$inferSelect) {
 }
 
 /** List all orders — active ones first, then recently delivered/cancelled */
-router.get("/admin/orders", async (_req, res): Promise<void> => {
+router.get("/admin/orders", requireAdmin, async (_req, res): Promise<void> => {
   const orders = await db
     .select()
     .from(ordersTable)
@@ -32,13 +33,13 @@ router.get("/admin/orders", async (_req, res): Promise<void> => {
 });
 
 /** List all cafes for the admin header stats */
-router.get("/admin/cafes/stats", async (_req, res): Promise<void> => {
+router.get("/admin/cafes/stats", requireAdmin, async (_req, res): Promise<void> => {
   const cafes = await db.select({ id: cafesTable.id, name: cafesTable.name, totalOrders: cafesTable.totalOrders }).from(cafesTable);
   res.json(cafes);
 });
 
 /** SSE stream — admin panel gets new orders and status updates in real time */
-router.get("/admin/orders/stream", (req, res): void => {
+router.get("/admin/orders/stream", requireAdmin, (req, res): void => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("Connection", "keep-alive");

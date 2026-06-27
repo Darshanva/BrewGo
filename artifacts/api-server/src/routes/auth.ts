@@ -57,15 +57,21 @@ function getSafeReturnTo(value: unknown): string {
   return value;
 }
 
+function isAdminUserId(id: string): boolean {
+  const adminIds = process.env.ADMIN_USER_IDS;
+  if (!adminIds) return false;
+  return adminIds.split(",").map((s) => s.trim()).includes(id);
+}
+
 async function upsertUser(claims: Record<string, unknown>) {
+  const id = claims.sub as string;
   const userData = {
-    id: claims.sub as string,
+    id,
     email: (claims.email as string) || null,
     firstName: (claims.first_name as string) || null,
     lastName: (claims.last_name as string) || null,
-    profileImageUrl: (claims.profile_image_url || claims.picture) as
-      | string
-      | null,
+    profileImageUrl: (claims.profile_image_url || claims.picture) as string | null,
+    isAdmin: isAdminUserId(id),
   };
 
   const [user] = await db
@@ -176,6 +182,7 @@ router.get("/callback", async (req: Request, res: Response) => {
       firstName: dbUser.firstName,
       lastName: dbUser.lastName,
       profileImageUrl: dbUser.profileImageUrl,
+      isAdmin: dbUser.isAdmin,
     },
     access_token: tokens.access_token,
     refresh_token: tokens.refresh_token,
@@ -246,6 +253,7 @@ router.post(
           firstName: dbUser.firstName,
           lastName: dbUser.lastName,
           profileImageUrl: dbUser.profileImageUrl,
+          isAdmin: dbUser.isAdmin,
         },
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,

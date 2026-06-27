@@ -420,7 +420,8 @@ export const GetCurrentAuthUserResponse = zod.object({
   "email": zod.string().email().nullable(),
   "firstName": zod.string().nullable(),
   "lastName": zod.string().nullable(),
-  "profileImageUrl": zod.string().nullable()
+  "profileImageUrl": zod.string().nullable(),
+  "isAdmin": zod.boolean().describe('Whether this user has cafe operator \/ admin access')
 }),zod.null()])
 })
 

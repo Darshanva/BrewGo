@@ -236,6 +236,8 @@ export interface AuthUser {
   lastName: string | null;
   /** @nullable */
   profileImageUrl: string | null;
+  /** Whether this user has cafe operator / admin access */
+  isAdmin: boolean;
 }
 
 export interface AuthUserEnvelope {

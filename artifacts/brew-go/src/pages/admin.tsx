@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@workspace/replit-auth-web";
 import {
   Wifi, WifiOff, Clock, ChefHat, Bike, CheckCircle, Package,
-  AlertCircle, RefreshCw, Bell,
+  AlertCircle, RefreshCw, Bell, Search, X, ShieldOff,
 } from "lucide-react";
 
 type OrderItem = { name: string; quantity: number; price: number };
@@ -30,12 +31,12 @@ const STATUS_ORDER = ["placed", "confirmed", "preparing", "out_for_delivery", "d
 type OrderStatus = typeof STATUS_ORDER[number];
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode; next: string | null }> = {
-  placed:           { label: "New Order",     color: "text-red-700",    bg: "bg-red-50 border-red-200",    icon: <Bell className="w-4 h-4" />,        next: "confirmed" },
-  confirmed:        { label: "Confirmed",     color: "text-blue-700",   bg: "bg-blue-50 border-blue-200",  icon: <CheckCircle className="w-4 h-4" />, next: "preparing" },
-  preparing:        { label: "Preparing",     color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-200", icon: <ChefHat className="w-4 h-4" />,  next: "out_for_delivery" },
-  out_for_delivery: { label: "Out for Delivery", color: "text-purple-700", bg: "bg-purple-50 border-purple-200", icon: <Bike className="w-4 h-4" />, next: "delivered" },
-  delivered:        { label: "Delivered",     color: "text-green-700",  bg: "bg-green-50 border-green-200", icon: <CheckCircle className="w-4 h-4" />, next: null },
-  cancelled:        { label: "Cancelled",     color: "text-gray-500",   bg: "bg-gray-50 border-gray-200",  icon: <AlertCircle className="w-4 h-4" />,  next: null },
+  placed:           { label: "New Order",        color: "text-red-700",    bg: "bg-red-50 border-red-200",       icon: <Bell className="w-4 h-4" />,        next: "confirmed" },
+  confirmed:        { label: "Confirmed",        color: "text-blue-700",   bg: "bg-blue-50 border-blue-200",     icon: <CheckCircle className="w-4 h-4" />, next: "preparing" },
+  preparing:        { label: "Preparing",        color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-200", icon: <ChefHat className="w-4 h-4" />,     next: "out_for_delivery" },
+  out_for_delivery: { label: "Out for Delivery", color: "text-purple-700", bg: "bg-purple-50 border-purple-200", icon: <Bike className="w-4 h-4" />,        next: "delivered" },
+  delivered:        { label: "Delivered",        color: "text-green-700",  bg: "bg-green-50 border-green-200",   icon: <CheckCircle className="w-4 h-4" />, next: null },
+  cancelled:        { label: "Cancelled",        color: "text-gray-500",   bg: "bg-gray-50 border-gray-200",     icon: <AlertCircle className="w-4 h-4" />, next: null },
 };
 
 const NEXT_ACTION: Record<string, string> = {
@@ -45,11 +46,37 @@ const NEXT_ACTION: Record<string, string> = {
   out_for_delivery: "Mark Delivered",
 };
 
+type TimeFilter = "all" | "today" | "hour";
+
 function timeAgo(iso: string) {
   const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (secs < 60) return `${secs}s ago`;
   if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
   return `${Math.floor(secs / 3600)}h ago`;
+}
+
+function matchesSearch(order: AdminOrder, q: string) {
+  if (!q) return true;
+  const lower = q.toLowerCase();
+  return (
+    order.cafeName.toLowerCase().includes(lower) ||
+    String(order.id).includes(lower.replace("#", "")) ||
+    order.deliveryAddress.toLowerCase().includes(lower) ||
+    order.items.some((i) => i.name.toLowerCase().includes(lower))
+  );
+}
+
+function matchesTime(order: AdminOrder, tf: TimeFilter) {
+  if (tf === "all") return true;
+  const created = new Date(order.createdAt).getTime();
+  const now = Date.now();
+  if (tf === "hour") return now - created <= 60 * 60 * 1000;
+  if (tf === "today") {
+    const midnight = new Date();
+    midnight.setHours(0, 0, 0, 0);
+    return created >= midnight.getTime();
+  }
+  return true;
 }
 
 function OrderCard({
@@ -132,18 +159,22 @@ function OrderCard({
 const ACTIVE_STATUSES = new Set(["placed", "confirmed", "preparing", "out_for_delivery"]);
 
 export default function Admin() {
+  const { user, isAuthenticated, isLoading: authLoading, login } = useAuth();
+
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [newOrderIds, setNewOrderIds] = useState<Set<number>>(new Set());
   const [advancing, setAdvancing] = useState<Record<number, boolean>>({});
   const [liveConnected, setLiveConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"active" | "all">("active");
+  const [search, setSearch] = useState("");
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
   const { toast } = useToast();
   const closedRef = useRef(false);
 
   const fetchOrders = useCallback(async () => {
     const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
-    const res = await fetch(`${baseUrl}/api/admin/orders`);
+    const res = await fetch(`${baseUrl}/api/admin/orders`, { credentials: "include" });
     if (res.ok) {
       const data = await res.json() as AdminOrder[];
       setOrders(data);
@@ -151,12 +182,15 @@ export default function Admin() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+  const isAdmin = isAuthenticated && user?.isAdmin;
 
-  // SSE connection for live updates
   useEffect(() => {
+    if (!isAdmin) return;
+    fetchOrders();
+  }, [fetchOrders, isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
     closedRef.current = false;
     const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
     const es = new EventSource(`${baseUrl}/api/admin/orders/stream`);
@@ -174,7 +208,6 @@ export default function Admin() {
           next.add(newOrder.id);
           return next;
         });
-        // Clear "new" highlight after 8 seconds
         setTimeout(() => {
           setNewOrderIds((prev) => {
             const next = new Set(prev);
@@ -187,9 +220,7 @@ export default function Admin() {
           description: `${newOrder.items.map((i) => `${i.quantity}× ${i.name}`).join(", ")} · ₹${newOrder.total.toFixed(0)}`,
           duration: 6000,
         });
-      } catch {
-        // ignore
-      }
+      } catch { /* ignore */ }
     });
 
     es.addEventListener("order_update", (e: MessageEvent) => {
@@ -199,9 +230,7 @@ export default function Admin() {
         setOrders((prev) =>
           prev.map((o) => (o.id === update.id ? { ...o, status: update.status } : o))
         );
-      } catch {
-        // ignore
-      }
+      } catch { /* ignore */ }
     });
 
     return () => {
@@ -209,7 +238,7 @@ export default function Admin() {
       es.close();
       setLiveConnected(false);
     };
-  }, []);
+  }, [isAdmin]);
 
   async function handleAdvance(orderId: number, nextStatus: string) {
     setAdvancing((p) => ({ ...p, [orderId]: true }));
@@ -221,7 +250,6 @@ export default function Admin() {
         credentials: "include",
         body: JSON.stringify({ status: nextStatus }),
       });
-      // SSE will push the update; optimistically update local state too
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? { ...o, status: nextStatus } : o))
       );
@@ -232,9 +260,53 @@ export default function Admin() {
     }
   }
 
-  const displayOrders = filter === "active"
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
+        <ShieldOff className="w-16 h-16 text-muted-foreground/40 mb-4" />
+        <h2 className="font-bold text-xl mb-2">Sign in required</h2>
+        <p className="text-muted-foreground text-sm mb-6">You need to be logged in to access the admin panel.</p>
+        <button
+          onClick={login}
+          className="bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl hover:bg-primary/90 transition-colors"
+        >
+          Sign in
+        </button>
+      </div>
+    );
+  }
+
+  if (!user?.isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
+        <ShieldOff className="w-16 h-16 text-muted-foreground/40 mb-4" />
+        <h2 className="font-bold text-xl mb-2">Access restricted</h2>
+        <p className="text-muted-foreground text-sm mb-2">
+          This panel is only available to cafe operators.
+        </p>
+        <p className="text-xs text-muted-foreground bg-muted rounded-xl px-4 py-3 max-w-xs">
+          To grant yourself admin access, add your user ID to the <code className="font-mono">ADMIN_USER_IDS</code> secret in Replit.<br />
+          Your ID: <code className="font-mono font-bold select-all">{user?.id}</code>
+        </p>
+      </div>
+    );
+  }
+
+  const baseFiltered = filter === "active"
     ? orders.filter((o) => ACTIVE_STATUSES.has(o.status))
     : orders;
+
+  const displayOrders = baseFiltered
+    .filter((o) => matchesSearch(o, search))
+    .filter((o) => matchesTime(o, timeFilter));
 
   const activeCount = orders.filter((o) => ACTIVE_STATUSES.has(o.status)).length;
   const countByStatus = (s: string) => orders.filter((o) => o.status === s).length;
@@ -242,8 +314,9 @@ export default function Admin() {
   return (
     <div className="pb-8">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 pt-5 pb-4">
-        <div className="flex items-center justify-between mb-3">
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 pt-5 pb-4 space-y-3">
+        {/* Title row */}
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="font-bold text-2xl">Live Orders</h1>
             <p className="text-sm text-muted-foreground">Cafe operator dashboard</p>
@@ -257,12 +330,12 @@ export default function Admin() {
         </div>
 
         {/* Status stats row */}
-        <div className="grid grid-cols-4 gap-2 mb-3">
+        <div className="grid grid-cols-4 gap-2">
           {[
-            { key: "placed", label: "New", color: "text-red-600 bg-red-50" },
-            { key: "confirmed", label: "Confirmed", color: "text-blue-600 bg-blue-50" },
-            { key: "preparing", label: "Preparing", color: "text-yellow-600 bg-yellow-50" },
-            { key: "out_for_delivery", label: "En Route", color: "text-purple-600 bg-purple-50" },
+            { key: "placed",           label: "New",       color: "text-red-600 bg-red-50" },
+            { key: "confirmed",        label: "Confirmed", color: "text-blue-600 bg-blue-50" },
+            { key: "preparing",        label: "Preparing", color: "text-yellow-600 bg-yellow-50" },
+            { key: "out_for_delivery", label: "En Route",  color: "text-purple-600 bg-purple-50" },
           ].map(({ key, label, color }) => (
             <div key={key} className={`rounded-xl px-2 py-2 text-center ${color}`}>
               <p className="font-bold text-xl">{countByStatus(key)}</p>
@@ -271,20 +344,51 @@ export default function Admin() {
           ))}
         </div>
 
-        {/* Filter tabs */}
+        {/* Search bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search by cafe, order #, item, or address…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-9 py-2.5 text-sm bg-muted rounded-xl border border-transparent focus:outline-none focus:border-primary/40 focus:bg-background transition-colors"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Filter tabs row */}
         <div className="flex gap-2">
-          <button
-            onClick={() => setFilter("active")}
-            className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${filter === "active" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}
+          {/* Active / All */}
+          <div className="flex gap-1.5 flex-1">
+            <button
+              onClick={() => setFilter("active")}
+              className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${filter === "active" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}
+            >
+              Active ({activeCount})
+            </button>
+            <button
+              onClick={() => setFilter("all")}
+              className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${filter === "all" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}
+            >
+              All ({orders.length})
+            </button>
+          </div>
+
+          {/* Time filter */}
+          <select
+            value={timeFilter}
+            onChange={(e) => setTimeFilter(e.target.value as TimeFilter)}
+            className="px-3 py-2 rounded-xl text-sm font-medium bg-muted border-0 focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
           >
-            Active ({activeCount})
-          </button>
-          <button
-            onClick={() => setFilter("all")}
-            className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${filter === "all" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}
-          >
-            All Orders ({orders.length})
-          </button>
+            <option value="all">All time</option>
+            <option value="today">Today</option>
+            <option value="hour">Last hour</option>
+          </select>
         </div>
       </div>
 
@@ -301,10 +405,10 @@ export default function Admin() {
           <div className="text-center py-16">
             <Package className="w-16 h-16 mx-auto mb-4 text-muted-foreground/40" />
             <p className="font-bold text-lg text-muted-foreground">
-              {filter === "active" ? "No active orders right now" : "No orders yet"}
+              {search ? "No orders match your search" : filter === "active" ? "No active orders right now" : "No orders yet"}
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              {liveConnected ? "New orders will appear here in real time" : "Connecting to live feed…"}
+              {search ? "Try a different search term" : liveConnected ? "New orders will appear here in real time" : "Connecting to live feed…"}
             </p>
           </div>
         )}

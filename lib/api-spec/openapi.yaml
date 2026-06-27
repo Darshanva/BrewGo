@@ -800,7 +800,7 @@ components:
 
     AuthUser:
       type: object
-      required: [id, email, firstName, lastName, profileImageUrl]
+      required: [id, email, firstName, lastName, profileImageUrl, isAdmin]
       properties:
         id:
           type: string
@@ -813,6 +813,9 @@ components:
           type: ["string", "null"]
         profileImageUrl:
           type: ["string", "null"]
+        isAdmin:
+          type: boolean
+          description: Whether this user has cafe operator / admin access
 
     AuthUserEnvelope:
       type: object
