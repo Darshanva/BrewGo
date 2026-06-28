@@ -1,65 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { useRoute, Link } from "wouter";
-import {
-  useGetOrder,
-  useUpdateOrderStatus,
-  getGetOrderQueryKey,
-} from "@workspace/api-client-react";
+import { useGetOrder, useUpdateOrderStatus, getGetOrderQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  CheckCircle,
-  Clock,
-  ChevronLeft,
-  MapPin,
-  Package,
-  Bike,
-  Star,
-  Wifi,
-  Gift,
-} from "lucide-react";
+import { CheckCircle, Clock, ChevronLeft, MapPin, Package, Bike, Star, Wifi, Gift } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 
 const STEPS = [
-  {
-    key: "placed",
-    label: "Order Placed",
-    icon: "✅",
-    desc: "We've received your order",
-  },
-  {
-    key: "confirmed",
-    label: "Confirmed",
-    icon: "✅",
-    desc: "Cafe confirmed your order",
-  },
-  {
-    key: "preparing",
-    label: "Preparing",
-    icon: "☕",
-    desc: "Your brew is being made",
-  },
-  {
-    key: "out_for_delivery",
-    label: "On the Way",
-    icon: "🛵",
-    desc: "Your order is out for delivery",
-  },
-  {
-    key: "delivered",
-    label: "Delivered",
-    icon: "⭐",
-    desc: "Enjoy your brew!",
-  },
+  { key: "placed", label: "Order Placed", icon: <CheckCircle className="w-5 h-5" />, desc: "We've received your order" },
+  { key: "confirmed", label: "Confirmed", icon: <CheckCircle className="w-5 h-5" />, desc: "Cafe confirmed your order" },
+  { key: "preparing", label: "Preparing", icon: <Package className="w-5 h-5" />, desc: "Your brew is being made" },
+  { key: "out_for_delivery", label: "On the Way", icon: <Bike className="w-5 h-5" />, desc: "Your order is out for delivery" },
+  { key: "delivered", label: "Delivered", icon: <Star className="w-5 h-5" />, desc: "Enjoy your brew!" },
 ];
 
-const STATUS_ORDER = [
-  "placed",
-  "confirmed",
-  "preparing",
-  "out_for_delivery",
-  "delivered",
-];
+const STATUS_ORDER = ["placed", "confirmed", "preparing", "out_for_delivery", "delivered"];
 
 const STATUS_LABELS: Record<string, string> = {
   confirmed: "Order confirmed by cafe ✅",
@@ -70,9 +25,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 function getNextStatus(current: string) {
   const idx = STATUS_ORDER.indexOf(current);
-  return idx >= 0 && idx < STATUS_ORDER.length - 1
-    ? STATUS_ORDER[idx + 1]
-    : null;
+  return idx >= 0 && idx < STATUS_ORDER.length - 1 ? STATUS_ORDER[idx + 1] : null;
 }
 
 export default function OrderTracking() {
@@ -90,9 +43,7 @@ export default function OrderTracking() {
       // SSE drives live updates; 30s poll is a safety net only
       refetchInterval: (query) => {
         const status = query.state.data?.status;
-        return status && ["delivered", "cancelled"].includes(status)
-          ? false
-          : 30000;
+        return status && ["delivered", "cancelled"].includes(status) ? false : 30000;
       },
     },
   });
@@ -108,22 +59,16 @@ export default function OrderTracking() {
     const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
     const es = new EventSource(`${baseUrl}/api/orders/${id}/stream`);
 
-    es.onopen = () => {
-      if (!closedRef.current) setLiveConnected(true);
-    };
-    es.onerror = () => {
-      if (!closedRef.current) setLiveConnected(false);
-    };
+    es.onopen = () => { if (!closedRef.current) setLiveConnected(true); };
+    es.onerror = () => { if (!closedRef.current) setLiveConnected(false); };
 
     es.onmessage = (e) => {
       if (closedRef.current) return;
       try {
         const update = JSON.parse(e.data) as { status: string };
         // Instantly update the cached order so UI reacts without a round-trip
-        queryClient.setQueryData(
-          getGetOrderQueryKey(id),
-          (old: typeof order) =>
-            old ? { ...old, status: update.status } : old,
+        queryClient.setQueryData(getGetOrderQueryKey(id), (old: typeof order) =>
+          old ? { ...old, status: update.status } : old
         );
         queryClient.invalidateQueries({ queryKey: getGetOrderQueryKey(id) });
 
@@ -146,24 +91,13 @@ export default function OrderTracking() {
     const next = getNextStatus(order.status);
     if (!next) return;
     updateStatus.mutate(
-      {
-        id,
-        data: {
-          status: next as
-            | "placed"
-            | "confirmed"
-            | "preparing"
-            | "out_for_delivery"
-            | "delivered"
-            | "cancelled",
-        },
-      },
+      { id, data: { status: next as "placed" | "confirmed" | "preparing" | "out_for_delivery" | "delivered" | "cancelled" } },
       {
         onSuccess: () => {
           // SSE will push the update back to all connected clients automatically
           queryClient.invalidateQueries({ queryKey: getGetOrderQueryKey(id) });
         },
-      },
+      }
     );
   }
 
@@ -177,12 +111,7 @@ export default function OrderTracking() {
     );
   }
 
-  if (!order)
-    return (
-      <div className="p-8 text-center text-muted-foreground">
-        Order not found
-      </div>
-    );
+  if (!order) return <div className="p-8 text-center text-muted-foreground">Order not found</div>;
 
   const currentIdx = STATUS_ORDER.indexOf(order.status);
   const isActive = !["delivered", "cancelled"].includes(order.status);
@@ -192,10 +121,7 @@ export default function OrderTracking() {
     <div className="pb-8">
       {/* Header */}
       <div className="px-4 pt-6 pb-4 flex items-center gap-3 border-b border-border">
-        <Link
-          href="/orders"
-          className="w-9 h-9 rounded-full border border-border flex items-center justify-center hover:bg-muted transition-colors"
-        >
+        <Link href="/orders" className="w-9 h-9 rounded-full border border-border flex items-center justify-center hover:bg-muted transition-colors">
           <ChevronLeft className="w-5 h-5" />
         </Link>
         <div className="flex-1">
@@ -203,9 +129,7 @@ export default function OrderTracking() {
           <p className="text-sm text-muted-foreground">{order.cafeName}</p>
         </div>
         {isActive && (
-          <div
-            className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-full transition-colors ${liveConnected ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}
-          >
+          <div className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-full transition-colors ${liveConnected ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
             <Wifi className="w-3 h-3" />
             {liveConnected ? "LIVE" : "connecting…"}
           </div>
@@ -239,14 +163,9 @@ export default function OrderTracking() {
         <div className="mx-4 mt-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
           <Gift className="w-4 h-4 text-amber-600 shrink-0" />
           <p className="text-sm text-amber-800">
-            <span className="font-bold">+{order.pointsEarned} BrewPoints</span>{" "}
-            earned on this order
+            <span className="font-bold">+{order.pointsEarned} BrewPoints</span> earned on this order
             {(order.pointsRedeemed ?? 0) > 0 && (
-              <span className="text-amber-700">
-                {" "}
-                · {order.pointsRedeemed} pts redeemed (₹
-                {Math.floor((order.pointsRedeemed ?? 0) / 10)} off)
-              </span>
+              <span className="text-amber-700"> · {order.pointsRedeemed} pts redeemed (₹{Math.floor((order.pointsRedeemed ?? 0) / 10)} off)</span>
             )}
           </p>
         </div>
@@ -264,46 +183,29 @@ export default function OrderTracking() {
           )}
         </div>
         <div className="relative">
-          {order.status !== "cancelled" &&
-            STEPS.map((step, i) => {
-              const done = i <= currentIdx;
-              const active = i === currentIdx;
-              return (
-                <div
-                  key={step.key}
-                  className="flex items-start gap-4 pb-6 last:pb-0"
-                >
-                  <div className="flex flex-col items-center">
-                    <div
-                      className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all duration-500 ${done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
-                    >
-                      {step.icon}
-                    </div>
-                    {i < STEPS.length - 1 && (
-                      <div
-                        className={`w-0.5 mt-1 transition-all duration-700 ${done && i < currentIdx ? "bg-primary" : "bg-border"}`}
-                        style={{ minHeight: 24 }}
-                      />
-                    )}
+          {order.status !== "cancelled" && STEPS.map((step, i) => {
+            const done = i <= currentIdx;
+            const active = i === currentIdx;
+            return (
+              <div key={step.key} className="flex items-start gap-4 pb-6 last:pb-0">
+                <div className="flex flex-col items-center">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all duration-500 ${done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                    {step.icon}
                   </div>
-                  <div className="pt-1.5 flex-1">
-                    <p
-                      className={`font-bold text-sm transition-colors ${done ? "text-foreground" : "text-muted-foreground"}`}
-                    >
-                      {step.label}
-                    </p>
-                    {active && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {step.desc}
-                      </p>
-                    )}
-                  </div>
-                  {active && isActive && (
-                    <span className="mt-2 inline-flex w-2.5 h-2.5 rounded-full bg-accent animate-pulse shrink-0" />
+                  {i < STEPS.length - 1 && (
+                    <div className={`w-0.5 mt-1 transition-all duration-700 ${done && i < currentIdx ? "bg-primary" : "bg-border"}`} style={{ minHeight: 24 }} />
                   )}
                 </div>
-              );
-            })}
+                <div className="pt-1.5 flex-1">
+                  <p className={`font-bold text-sm transition-colors ${done ? "text-foreground" : "text-muted-foreground"}`}>{step.label}</p>
+                  {active && <p className="text-xs text-muted-foreground mt-0.5">{step.desc}</p>}
+                </div>
+                {active && isActive && (
+                  <span className="mt-2 inline-flex w-2.5 h-2.5 rounded-full bg-accent animate-pulse shrink-0" />
+                )}
+              </div>
+            );
+          })}
           {order.status === "cancelled" && (
             <div className="flex items-center gap-3 text-red-600">
               <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center">
@@ -328,49 +230,30 @@ export default function OrderTracking() {
       <div className="mx-4 mt-4 bg-card border border-border rounded-2xl p-4">
         <h2 className="font-bold mb-3">Your Order</h2>
         <div className="space-y-2">
-          {(
-            order.items as Array<{
-              name: string;
-              quantity: number;
-              price: number;
-              imageUrl: string;
-            }>
-          ).map((item, i) => (
+          {(order.items as Array<{ name: string; quantity: number; price: number; imageUrl: string }>).map((item, i) => (
             <div key={i} className="flex items-center gap-3">
-              <img
-                src={item.imageUrl}
-                alt={item.name}
-                className="w-10 h-10 object-cover rounded-lg"
-              />
+              <img src={item.imageUrl} alt={item.name} className="w-10 h-10 object-cover rounded-lg" />
               <div className="flex-1">
-                <p className="text-sm font-semibold">
-                  {item.quantity}× {item.name}
-                </p>
+                <p className="text-sm font-semibold">{item.quantity}× {item.name}</p>
               </div>
-              <p className="text-sm font-bold">
-                ₹{(item.price * item.quantity).toFixed(0)}
-              </p>
+              <p className="text-sm font-bold">₹{(item.price * item.quantity).toFixed(0)}</p>
             </div>
           ))}
         </div>
         <div className="mt-4 pt-3 border-t border-border space-y-1.5 text-sm">
           <div className="flex justify-between text-muted-foreground">
-            <span>Subtotal</span>
-            <span>₹{order.subtotal.toFixed(0)}</span>
+            <span>Subtotal</span><span>₹{order.subtotal.toFixed(0)}</span>
           </div>
           <div className="flex justify-between text-muted-foreground">
-            <span>Delivery fee</span>
-            <span>₹{order.deliveryFee.toFixed(0)}</span>
+            <span>Delivery fee</span><span>₹{order.deliveryFee.toFixed(0)}</span>
           </div>
           {(order.discount ?? 0) > 0 && (
             <div className="flex justify-between text-amber-700 font-semibold">
-              <span>BrewPoints discount</span>
-              <span>−₹{(order.discount ?? 0).toFixed(0)}</span>
+              <span>BrewPoints discount</span><span>−₹{(order.discount ?? 0).toFixed(0)}</span>
             </div>
           )}
           <div className="flex justify-between font-bold">
-            <span>Total paid</span>
-            <span>₹{order.total.toFixed(0)}</span>
+            <span>Total paid</span><span>₹{order.total.toFixed(0)}</span>
           </div>
         </div>
       </div>
@@ -383,9 +266,7 @@ export default function OrderTracking() {
             disabled={updateStatus.isPending}
             className="w-full border-2 border-primary text-primary font-bold py-3 rounded-xl hover:bg-primary/5 transition-colors disabled:opacity-60 text-sm"
           >
-            {updateStatus.isPending
-              ? "Updating…"
-              : `Simulate: Move to "${nextStatus.replace(/_/g, " ")}"`}
+            {updateStatus.isPending ? "Updating…" : `Simulate: Move to "${nextStatus.replace(/_/g, " ")}"`}
           </button>
           <p className="text-xs text-center text-muted-foreground mt-2">
             Status pushes live to all connected clients via SSE
