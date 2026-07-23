@@ -395,36 +395,3 @@ export default function OrderTracking() {
     </div>
   );
 }
-{
-  /* Live Map - Simple Version */
-}
-{
-  {
-    /* Live Map */
-  }
-  {
-    order && order.status === "out_for_delivery" && (
-      <div className="mx-4 mt-6 bg-card border border-border rounded-2xl overflow-hidden">
-        <div className="p-4 border-b border-border">
-          <h2 className="font-bold flex items-center gap-2">
-            <Bike className="w-5 h-5 text-primary" /> Live Delivery Tracking
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Delivery partner is nearby
-          </p>
-        </div>
-
-        <div className="h-[320px]">
-          <iframe
-            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3888.0!2d77.62!3d12.93!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bae1670c9b44a4d%3A0x8c5b0c5b0c5b0c5b!2sKoramangala%2C+Bengaluru!5e0!3m2!1sen!2sin!4v1720000000000"
-            width="100%"
-            height="100%"
-            style={{ border: 0 }}
-            allowFullScreen
-            loading="lazy"
-          ></iframe>
-        </div>
-      </div>
-    );
-  }
-}
