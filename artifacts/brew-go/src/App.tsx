@@ -14,6 +14,8 @@ import Orders from "@/pages/orders";
 import OrderTracking from "@/pages/order-tracking";
 import Profile from "@/pages/profile";
 import Admin from "@/pages/admin";
+import Login from "@/pages/login";
+import Register from "@/pages/register";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +32,8 @@ function Router() {
         <Route path="/orders/:id" component={OrderTracking} />
         <Route path="/profile" component={Profile} />
         <Route path="/admin" component={Admin} />
+        <Route path="/login" component={Login} />
+        <Route path="/register" component={Register} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
