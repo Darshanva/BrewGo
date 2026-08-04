@@ -1,4 +1,5 @@
-import { Link } from "wouter";
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "wouter";
 import { useListOrders, getListOrdersQueryKey } from "@workspace/api-client-react";
 import { Receipt, Clock, CheckCircle, XCircle, ChevronRight, Package } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,9 +14,37 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
 };
 
 export default function Orders() {
+  const [, setLocation] = useLocation();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const user = localStorage.getItem("user");
+    if (token && user) {
+      setIsAuthenticated(true);
+    } else {
+      setLocation("/login");
+    }
+    setChecking(false);
+  }, [setLocation]);
+
   const { data: orders, isLoading } = useListOrders({
-    query: { queryKey: getListOrdersQueryKey() },
+    query: {
+      queryKey: getListOrdersQueryKey(),
+      enabled: isAuthenticated,
+    },
   });
+
+  if (checking || !isAuthenticated) {
+    return (
+      <div className="px-4 pt-6 space-y-4">
+        <Skeleton className="h-10 w-48" />
+        <Skeleton className="h-28 w-full rounded-xl" />
+        <Skeleton className="h-28 w-full rounded-xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="pb-8">
@@ -40,45 +69,42 @@ export default function Orders() {
               Your brew history will appear here
             </p>
             <Link href="/cafes">
-              <span className="bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl hover:bg-primary/90 transition-colors">
-                Order Now
-              </span>
+              <button className="bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl hover:bg-primary/90 transition-colors">
+                Browse Cafes
+              </button>
             </Link>
           </div>
         ) : (
-          <div className="space-y-4">
-            {orders.map((order) => {
-              const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.placed;
-              const isActive = !["delivered", "cancelled"].includes(order.status);
+          <div className="space-y-3">
+            {orders.map((order: any) => {
+              const status = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.placed;
               return (
                 <Link key={order.id} href={`/orders/${order.id}`}>
-                  <div className={`bg-card border rounded-xl p-4 cursor-pointer hover:shadow-sm transition-shadow ${isActive ? "border-primary/30" : "border-border"}`}>
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <p className="font-bold text-base">{order.cafeName}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Order #{order.id} • {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                  <div className="bg-card border border-border rounded-xl p-4 hover:shadow-md transition-shadow cursor-pointer">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${status.color}`}>
+                            {status.icon}
+                            {status.label}
+                          </span>
+                        </div>
+                        <p className="font-bold text-sm truncate">
+                          {order.cafeName || `Order #${order.id}`}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {order.createdAt
+                            ? new Date(order.createdAt).toLocaleDateString("en-IN", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              })
+                            : ""}
                         </p>
                       </div>
-                      <span className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg ${cfg.color}`}>
-                        {cfg.icon}
-                        {cfg.label}
-                      </span>
-                    </div>
-
-                    <div className="text-sm text-muted-foreground mb-3">
-                      {(order.items as Array<{ name: string; quantity: number }>)
-                        .slice(0, 3)
-                        .map((i) => `${i.quantity}x ${i.name}`)
-                        .join(", ")}
-                      {(order.items as Array<unknown>).length > 3 && ` +${(order.items as Array<unknown>).length - 3} more`}
-                    </div>
-
-                    <div className="flex items-center justify-between pt-3 border-t border-border">
-                      <span className="font-bold">₹{order.total.toFixed(0)}</span>
-                      <div className="flex items-center gap-1 text-sm font-bold text-primary">
-                        {isActive ? "Track Order" : "View Details"}
-                        <ChevronRight className="w-4 h-4" />
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm">₹{order.totalAmount ?? order.total ?? 0}</span>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
                       </div>
                     </div>
                   </div>
