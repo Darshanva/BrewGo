@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useLocation } from "wouter";
+import { useState, useMemo, useEffect } from "react";
+import { useLocation, Link } from "wouter";
 import { useCart } from "@/lib/cart-context";
 import {
   useCreateOrder,
@@ -8,7 +8,6 @@ import {
   getGetMyRewardsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@workspace/replit-auth-web";
 import { ShoppingBag, Plus, Minus, Trash2, MapPin, ChevronRight, Gift, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
@@ -24,8 +23,8 @@ const BANGALORE_ADDRESSES = [
 ];
 
 const TIER_MESSAGES: Record<string, { emoji: string; msg: string }> = {
-  Silver:   { emoji: "🥈", msg: "You've hit Silver status! Enjoy 2× BrewPoints on your next order." },
-  Gold:     { emoji: "🥇", msg: "Gold tier unlocked! Exclusive perks are now yours." },
+  Silver: { emoji: "🥈", msg: "You've hit Silver status! Enjoy 2× BrewPoints on your next order." },
+  Gold: { emoji: "🥇", msg: "Gold tier unlocked! Exclusive perks are now yours." },
   Platinum: { emoji: "💎", msg: "PLATINUM! You're a BrewGo legend. Maximum rewards await." },
 };
 
@@ -36,10 +35,16 @@ export default function Cart() {
   const [useCustom, setUseCustom] = useState(false);
   const [redeemEnabled, setRedeemEnabled] = useState(false);
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const user = localStorage.getItem("user");
+    setIsAuthenticated(!!(token && user));
+  }, []);
 
   const { data: rewards } = useGetMyRewards({
     query: {
@@ -51,7 +56,6 @@ export default function Cart() {
   const createOrder = useCreateOrder();
   const deliveryFee = items.length > 0 ? (subtotal >= 299 ? 0 : 39) : 0;
 
-  // Max redeemable: limited by both balance and order value, in steps of 100
   const maxRedeemable = useMemo(() => {
     if (!rewards) return 0;
     const maxByBalance = Math.floor(rewards.totalPoints / 100) * 100;
@@ -70,7 +74,14 @@ export default function Cart() {
   }
 
   function handlePlaceOrder() {
+    if (!isAuthenticated) {
+      toast({ title: "Please login to place order", variant: "destructive" });
+      navigate("/login");
+      return;
+    }
+
     if (!cafeId) return;
+
     const deliveryAddress = useCustom ? customAddress : address;
     if (!deliveryAddress.trim()) {
       toast({ title: "Please enter a delivery address", variant: "destructive" });
@@ -91,11 +102,8 @@ export default function Cart() {
           queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetMyRewardsQueryKey() });
           clearCart();
-
-          // Tier achievement toast
           if (order.tierAchieved && TIER_MESSAGES[order.tierAchieved]) {
             const { emoji, msg } = TIER_MESSAGES[order.tierAchieved];
-            // Slight delay so the navigation happens first and it overlaps the tracking page
             setTimeout(() => {
               toast({
                 title: `${emoji} ${order.tierAchieved} tier achieved!`,
@@ -104,7 +112,6 @@ export default function Cart() {
               });
             }, 800);
           }
-
           navigate(`/orders/${order.id}`);
         },
         onError: () => {
@@ -124,12 +131,11 @@ export default function Cart() {
         <p className="text-muted-foreground text-sm mb-6">
           Discover Bangalore's best cafes and add your favourite brews
         </p>
-        <a
-          href="/cafes"
-          className="bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl hover:bg-primary/90 transition-colors"
-        >
-          Browse Cafes
-        </a>
+        <Link href="/cafes">
+          <button className="bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl hover:bg-primary/90 transition-colors">
+            Browse Cafes
+          </button>
+        </Link>
       </div>
     );
   }
@@ -143,7 +149,6 @@ export default function Cart() {
         )}
       </div>
 
-      {/* Cart items */}
       <div className="px-4 py-4 space-y-3">
         {items.map((item) => (
           <div key={`${item.menuItemId}-${item.customization}`} className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
@@ -172,7 +177,6 @@ export default function Cart() {
         ))}
       </div>
 
-      {/* BrewPoints redemption card */}
       {isAuthenticated && rewards && rewards.totalPoints >= 100 && (
         <div className="mx-4 mb-4 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4">
           <div className="flex items-center justify-between mb-1">
@@ -191,7 +195,6 @@ export default function Cart() {
               className="data-[state=checked]:bg-amber-500"
             />
           </div>
-
           {redeemEnabled && maxRedeemable > 0 && (
             <div className="mt-3 pt-3 border-t border-amber-200">
               <div className="flex justify-between items-center mb-3">
@@ -214,25 +217,19 @@ export default function Cart() {
               </div>
             </div>
           )}
-
-          {redeemEnabled && maxRedeemable === 0 && (
-            <p className="text-xs text-amber-700 mt-2">Need at least 100 pts to redeem on this order.</p>
-          )}
         </div>
       )}
 
-      {/* Sign-in nudge for guests */}
       {!isAuthenticated && (
         <div className="mx-4 mb-4 bg-muted rounded-2xl p-4 flex items-center gap-3">
           <Star className="w-5 h-5 text-accent shrink-0" />
           <p className="text-sm text-muted-foreground">
-            <a href="/profile" className="font-bold text-foreground hover:underline">Sign in</a>{" "}
-            to earn BrewPoints on this order
+            <Link href="/login" className="font-bold text-foreground hover:underline">Sign in</Link>{" "}
+            to earn BrewPoints and place order
           </p>
         </div>
       )}
 
-      {/* Delivery address */}
       <div className="px-4 py-4 border-t border-border">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -270,7 +267,6 @@ export default function Cart() {
         )}
       </div>
 
-      {/* Order summary */}
       <div className="px-4 py-4 border-t border-border">
         <h2 className="font-bold mb-3">Order Summary</h2>
         <div className="space-y-2 text-sm">
@@ -308,7 +304,6 @@ export default function Cart() {
         </div>
       </div>
 
-      {/* Sticky CTA */}
       <div className="fixed bottom-0 left-0 right-0 md:left-64 p-4 bg-background/90 backdrop-blur-md border-t border-border z-20">
         <button
           onClick={handlePlaceOrder}
@@ -317,6 +312,8 @@ export default function Cart() {
         >
           {createOrder.isPending
             ? "Placing Order…"
+            : !isAuthenticated
+            ? "Login to Place Order"
             : `Place Order · ₹${total.toFixed(0)}${discount > 0 ? ` (₹${discount.toFixed(0)} saved)` : ""}`}
         </button>
       </div>
