@@ -2,55 +2,58 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import {
-  Wifi, WifiOff, Clock, ChefHat, Bike, CheckCircle, Package,
+  WifiOff, Clock, ChefHat, Bike, CheckCircle, Package,
   AlertCircle, RefreshCw, Bell, Search, X, ShieldOff,
+  LayoutDashboard, Store, UtensilsCrossed, Plus, Trash2, Pencil,
+  IndianRupee, ShoppingBag, TrendingUp,
 } from "lucide-react";
 
 type OrderItem = { name: string; quantity: number; price: number };
-
 type AdminOrder = {
-  id: number;
-  userId: string | null;
-  cafeId: number;
-  cafeName: string;
-  items: OrderItem[];
-  status: string;
-  subtotal: number;
-  deliveryFee: number;
-  discount: number;
-  total: number;
-  deliveryAddress: string;
-  estimatedTime: number;
-  pointsEarned: number;
-  pointsRedeemed: number;
-  createdAt: string;
-  updatedAt: string | null;
+  id: number; cafeName: string; items: OrderItem[]; status: string;
+  total: number; deliveryAddress: string; estimatedTime: number;
+  pointsEarned: number; discount: number; createdAt: string;
+};
+type LocalUser = { id: string; email?: string | null; firstName?: string | null; isAdmin?: boolean };
+type Cafe = {
+  id: number; name: string; description: string | null; area: string; address: string;
+  rating: string; deliveryTime: number; deliveryFee: string; minOrder: string;
+  imageUrl: string; isOpen: boolean; isFeatured: boolean; discount: string | null;
+};
+type MenuItem = {
+  id: number; cafeId: number; name: string; description: string | null;
+  price: string; category: string; imageUrl: string;
+  isAvailable: boolean; isVeg: boolean; isBestseller: boolean;
+};
+type Stats = {
+  totalOrders: number; todayOrders: number; totalRevenue: number;
+  todayRevenue: number; statusCounts: Record<string, number>;
+  totalCafes: number; totalMenuItems: number; activeOrders: number;
 };
 
-type LocalUser = {
-  id: string;
-  email?: string | null;
-  firstName?: string | null;
-  isAdmin?: boolean;
-};
+const API_BASE = import.meta.env.VITE_API_URL || "";
+const ACTIVE_STATUSES = new Set(["placed", "confirmed", "preparing", "out_for_delivery"]);
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode; next: string | null }> = {
-  placed:           { label: "New Order",        color: "text-red-700",    bg: "bg-red-50 border-red-200",       icon: <Bell className="w-4 h-4" />,        next: "confirmed" },
-  confirmed:        { label: "Confirmed",        color: "text-blue-700",   bg: "bg-blue-50 border-blue-200",     icon: <CheckCircle className="w-4 h-4" />, next: "preparing" },
-  preparing:        { label: "Preparing",        color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-200", icon: <ChefHat className="w-4 h-4" />,     next: "out_for_delivery" },
-  out_for_delivery: { label: "Out for Delivery", color: "text-purple-700", bg: "bg-purple-50 border-purple-200", icon: <Bike className="w-4 h-4" />,        next: "delivered" },
-  delivered:        { label: "Delivered",        color: "text-green-700",  bg: "bg-green-50 border-green-200",   icon: <CheckCircle className="w-4 h-4" />, next: null },
-  cancelled:        { label: "Cancelled",        color: "text-gray-500",   bg: "bg-gray-50 border-gray-200",     icon: <AlertCircle className="w-4 h-4" />, next: null },
+  placed: { label: "New Order", color: "text-red-700", bg: "bg-red-50 border-red-200", icon: <Bell className="w-4 h-4" />, next: "confirmed" },
+  confirmed: { label: "Confirmed", color: "text-blue-700", bg: "bg-blue-50 border-blue-200", icon: <CheckCircle className="w-4 h-4" />, next: "preparing" },
+  preparing: { label: "Preparing", color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-200", icon: <ChefHat className="w-4 h-4" />, next: "out_for_delivery" },
+  out_for_delivery: { label: "Out for Delivery", color: "text-purple-700", bg: "bg-purple-50 border-purple-200", icon: <Bike className="w-4 h-4" />, next: "delivered" },
+  delivered: { label: "Delivered", color: "text-green-700", bg: "bg-green-50 border-green-200", icon: <CheckCircle className="w-4 h-4" />, next: null },
+  cancelled: { label: "Cancelled", color: "text-gray-500", bg: "bg-gray-50 border-gray-200", icon: <AlertCircle className="w-4 h-4" />, next: null },
 };
-
 const NEXT_ACTION: Record<string, string> = {
-  placed: "Confirm",
-  confirmed: "Start Preparing",
-  preparing: "Mark Out for Delivery",
-  out_for_delivery: "Mark Delivered",
+  placed: "Confirm", confirmed: "Start Preparing",
+  preparing: "Mark Out for Delivery", out_for_delivery: "Mark Delivered",
 };
 
-type TimeFilter = "all" | "today" | "hour";
+function authHeaders() {
+  const token = localStorage.getItem("token");
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
 
 function timeAgo(iso: string) {
   const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -59,133 +62,34 @@ function timeAgo(iso: string) {
   return `${Math.floor(secs / 3600)}h ago`;
 }
 
-function matchesSearch(order: AdminOrder, q: string) {
-  if (!q) return true;
-  const lower = q.toLowerCase();
-  return (
-    order.cafeName.toLowerCase().includes(lower) ||
-    String(order.id).includes(lower.replace("#", "")) ||
-    order.deliveryAddress.toLowerCase().includes(lower) ||
-    order.items.some((i) => i.name.toLowerCase().includes(lower))
-  );
-}
-
-function matchesTime(order: AdminOrder, tf: TimeFilter) {
-  if (tf === "all") return true;
-  const created = new Date(order.createdAt).getTime();
-  const now = Date.now();
-  if (tf === "hour") return now - created <= 60 * 60 * 1000;
-  if (tf === "today") {
-    const midnight = new Date();
-    midnight.setHours(0, 0, 0, 0);
-    return created >= midnight.getTime();
-  }
-  return true;
-}
-
-function OrderCard({
-  order,
-  isNew,
-  onAdvance,
-  advancing,
-}: {
-  order: AdminOrder;
-  isNew: boolean;
-  onAdvance: (id: number, next: string) => void;
-  advancing: boolean;
-}) {
-  const meta = STATUS_META[order.status] ?? STATUS_META.placed;
-  const nextStatus = meta.next;
-
-  return (
-    <div
-      className={`rounded-2xl border p-4 transition-all duration-500 ${meta.bg} ${isNew ? "ring-2 ring-red-400 ring-offset-1 animate-[pulse_1s_ease_2]" : ""}`}
-    >
-      <div className="flex items-start justify-between gap-2 mb-3">
-        <div className="flex items-center gap-2">
-          <span className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-white/70 ${meta.color}`}>
-            {meta.icon} {meta.label}
-          </span>
-          {isNew && (
-            <span className="text-xs font-bold text-red-600 animate-bounce">NEW</span>
-          )}
-        </div>
-        <div className="text-right shrink-0">
-          <p className="font-bold text-lg">₹{order.total.toFixed(0)}</p>
-          <p className="text-xs text-muted-foreground">{timeAgo(order.createdAt)}</p>
-        </div>
-      </div>
-
-      <div className="mb-2">
-        <p className="font-bold">{order.cafeName} · #{order.id}</p>
-        <p className="text-xs text-muted-foreground truncate mt-0.5">📍 {order.deliveryAddress}</p>
-      </div>
-
-      <div className="space-y-1 mb-3">
-        {order.items.map((item, i) => (
-          <p key={i} className="text-sm">
-            <span className="font-semibold">{item.quantity}×</span> {item.name}
-          </p>
-        ))}
-      </div>
-
-      <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
-        <span className="flex items-center gap-1">
-          <Clock className="w-3 h-3" /> Est. {order.estimatedTime} min
-        </span>
-        {order.pointsEarned > 0 && (
-          <span className="text-amber-600 font-medium">+{order.pointsEarned} pts</span>
-        )}
-        {order.discount > 0 && (
-          <span className="text-green-600 font-medium">₹{order.discount.toFixed(0)} discount</span>
-        )}
-      </div>
-
-      {nextStatus && NEXT_ACTION[order.status] && (
-        <button
-          onClick={() => onAdvance(order.id, nextStatus)}
-          disabled={advancing}
-          className="w-full bg-primary text-primary-foreground font-bold py-2.5 rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-60 text-sm"
-        >
-          {advancing ? (
-            <span className="flex items-center justify-center gap-2">
-              <RefreshCw className="w-4 h-4 animate-spin" /> Updating…
-            </span>
-          ) : (
-            `→ ${NEXT_ACTION[order.status]}`
-          )}
-        </button>
-      )}
-    </div>
-  );
-}
-
-const ACTIVE_STATUSES = new Set(["placed", "confirmed", "preparing", "out_for_delivery"]);
-const API_BASE = import.meta.env.VITE_API_URL || "";
+type Tab = "orders" | "dashboard" | "cafes";
 
 export default function Admin() {
   const [user, setUser] = useState<LocalUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-
+  const [tab, setTab] = useState<Tab>("orders");
   const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [cafes, setCafes] = useState<Cafe[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [selectedCafeId, setSelectedCafeId] = useState<number | null>(null);
   const [newOrderIds, setNewOrderIds] = useState<Set<number>>(new Set());
   const [advancing, setAdvancing] = useState<Record<number, boolean>>({});
   const [liveConnected, setLiveConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"active" | "all">("active");
   const [search, setSearch] = useState("");
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
+  const [showCafeForm, setShowCafeForm] = useState(false);
+  const [showMenuForm, setShowMenuForm] = useState(false);
+  const [cafeForm, setCafeForm] = useState({ name: "", area: "", address: "", description: "" });
+  const [menuForm, setMenuForm] = useState({ name: "", price: "", category: "coffee", description: "" });
   const { toast } = useToast();
   const closedRef = useRef(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
     if (stored) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch {
-        setUser(null);
-      }
+      try { setUser(JSON.parse(stored)); } catch { setUser(null); }
     }
     setAuthLoading(false);
   }, []);
@@ -194,102 +98,135 @@ export default function Admin() {
   const isAdmin = isAuthenticated && !!user?.isAdmin;
 
   const fetchOrders = useCallback(async () => {
-    const token = localStorage.getItem("token");
-    const res = await fetch(`${API_BASE}/api/admin/orders`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      credentials: "include",
-    });
-    if (res.ok) {
-      const data = await res.json() as AdminOrder[];
-      setOrders(data);
-    }
+    const res = await fetch(`${API_BASE}/api/admin/orders`, { headers: authHeaders() });
+    if (res.ok) setOrders(await res.json());
     setLoading(false);
+  }, []);
+
+  const fetchStats = useCallback(async () => {
+    const res = await fetch(`${API_BASE}/api/admin/stats`, { headers: authHeaders() });
+    if (res.ok) setStats(await res.json());
+  }, []);
+
+  const fetchCafes = useCallback(async () => {
+    const res = await fetch(`${API_BASE}/api/admin/cafes`, { headers: authHeaders() });
+    if (res.ok) setCafes(await res.json());
+  }, []);
+
+  const fetchMenu = useCallback(async (cafeId?: number) => {
+    const url = cafeId ? `${API_BASE}/api/admin/menu?cafeId=${cafeId}` : `${API_BASE}/api/admin/menu`;
+    const res = await fetch(url, { headers: authHeaders() });
+    if (res.ok) setMenuItems(await res.json());
   }, []);
 
   useEffect(() => {
     if (!isAdmin) return;
     fetchOrders();
-  }, [fetchOrders, isAdmin]);
+    fetchStats();
+    fetchCafes();
+  }, [isAdmin, fetchOrders, fetchStats, fetchCafes]);
 
   useEffect(() => {
     if (!isAdmin) return;
     closedRef.current = false;
     const es = new EventSource(`${API_BASE}/api/admin/orders/stream`);
-
     es.onopen = () => { if (!closedRef.current) setLiveConnected(true); };
     es.onerror = () => { if (!closedRef.current) setLiveConnected(false); };
-
     es.addEventListener("new_order", (e: MessageEvent) => {
       if (closedRef.current) return;
       try {
         const newOrder = JSON.parse(e.data) as AdminOrder;
         setOrders((prev) => [newOrder, ...prev.filter((o) => o.id !== newOrder.id)]);
-        setNewOrderIds((prev) => {
-          const next = new Set(prev);
-          next.add(newOrder.id);
-          return next;
-        });
-        setTimeout(() => {
-          setNewOrderIds((prev) => {
-            const next = new Set(prev);
-            next.delete(newOrder.id);
-            return next;
-          });
-        }, 8000);
-        toast({
-          title: `🛎️ New order #${newOrder.id} from ${newOrder.cafeName}!`,
-          description: `${newOrder.items.map((i) => `${i.quantity}× ${i.name}`).join(", ")} · ₹${newOrder.total.toFixed(0)}`,
-          duration: 6000,
-        });
-      } catch { /* ignore */ }
+        setNewOrderIds((prev) => new Set(prev).add(newOrder.id));
+        setTimeout(() => setNewOrderIds((prev) => { const n = new Set(prev); n.delete(newOrder.id); return n; }), 8000);
+        toast({ title: `🛎️ New order #${newOrder.id}`, description: `${newOrder.cafeName} · ₹${newOrder.total}` });
+        fetchStats();
+      } catch {}
     });
-
-    es.addEventListener("order_update", (e: MessageEvent) => {
-      if (closedRef.current) return;
-      try {
-        const update = JSON.parse(e.data) as { id: number; status: string };
-        setOrders((prev) =>
-          prev.map((o) => (o.id === update.id ? { ...o, status: update.status } : o))
-        );
-      } catch { /* ignore */ }
-    });
-
-    return () => {
-      closedRef.current = true;
-      es.close();
-      setLiveConnected(false);
-    };
-  }, [isAdmin, toast]);
+    return () => { closedRef.current = true; es.close(); setLiveConnected(false); };
+  }, [isAdmin, toast, fetchStats]);
 
   async function handleAdvance(orderId: number, nextStatus: string) {
     setAdvancing((p) => ({ ...p, [orderId]: true }));
     try {
-      const token = localStorage.getItem("token");
       await fetch(`${API_BASE}/api/orders/${orderId}/status`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: "include",
+        headers: authHeaders(),
         body: JSON.stringify({ status: nextStatus }),
       });
-      setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: nextStatus } : o))
-      );
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: nextStatus } : o)));
+      fetchStats();
     } catch {
-      toast({ title: "Failed to update order status", variant: "destructive" });
+      toast({ title: "Failed to update status", variant: "destructive" });
     } finally {
       setAdvancing((p) => ({ ...p, [orderId]: false }));
     }
   }
 
+  async function createCafe() {
+    if (!cafeForm.name || !cafeForm.area || !cafeForm.address) {
+      toast({ title: "Name, area, address required", variant: "destructive" });
+      return;
+    }
+    const res = await fetch(`${API_BASE}/api/admin/cafes`, {
+      method: "POST", headers: authHeaders(), body: JSON.stringify(cafeForm),
+    });
+    if (res.ok) {
+      toast({ title: "Cafe created!" });
+      setShowCafeForm(false);
+      setCafeForm({ name: "", area: "", address: "", description: "" });
+      fetchCafes();
+      fetchStats();
+    } else {
+      toast({ title: "Failed to create cafe", variant: "destructive" });
+    }
+  }
+
+  async function toggleCafeOpen(cafe: Cafe) {
+    await fetch(`${API_BASE}/api/admin/cafes/${cafe.id}`, {
+      method: "PATCH", headers: authHeaders(),
+      body: JSON.stringify({ isOpen: !cafe.isOpen }),
+    });
+    fetchCafes();
+  }
+
+  async function deleteCafe(id: number) {
+    if (!confirm("Delete cafe and all its menu items?")) return;
+    await fetch(`${API_BASE}/api/admin/cafes/${id}`, { method: "DELETE", headers: authHeaders() });
+    fetchCafes();
+    fetchMenu();
+    fetchStats();
+  }
+
+  async function createMenuItem() {
+    if (!selectedCafeId || !menuForm.name || !menuForm.price) {
+      toast({ title: "Select cafe, name and price required", variant: "destructive" });
+      return;
+    }
+    const res = await fetch(`${API_BASE}/api/admin/menu`, {
+      method: "POST", headers: authHeaders(),
+      body: JSON.stringify({ ...menuForm, cafeId: selectedCafeId, price: Number(menuForm.price) }),
+    });
+    if (res.ok) {
+      toast({ title: "Menu item added!" });
+      setShowMenuForm(false);
+      setMenuForm({ name: "", price: "", category: "coffee", description: "" });
+      fetchMenu(selectedCafeId);
+      fetchStats();
+    } else {
+      toast({ title: "Failed to add item", variant: "destructive" });
+    }
+  }
+
+  async function deleteMenuItem(id: number) {
+    if (!confirm("Delete this menu item?")) return;
+    await fetch(`${API_BASE}/api/admin/menu/${id}`, { method: "DELETE", headers: authHeaders() });
+    fetchMenu(selectedCafeId || undefined);
+    fetchStats();
+  }
+
   if (authLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <div className="flex items-center justify-center min-h-[60vh]"><RefreshCw className="w-8 h-8 animate-spin text-muted-foreground" /></div>;
   }
 
   if (!isAuthenticated) {
@@ -297,148 +234,215 @@ export default function Admin() {
       <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
         <ShieldOff className="w-16 h-16 text-muted-foreground/40 mb-4" />
         <h2 className="font-bold text-xl mb-2">Sign in required</h2>
-        <p className="text-muted-foreground text-sm mb-6">You need to be logged in to access the admin panel.</p>
-        <Link href="/login">
-          <button className="bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl hover:bg-primary/90 transition-colors">
-            Sign in
-          </button>
-        </Link>
+        <Link href="/login"><button className="bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">Sign in</button></Link>
       </div>
     );
   }
 
-  if (!user?.isAdmin) {
+  if (!isAdmin) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
         <ShieldOff className="w-16 h-16 text-muted-foreground/40 mb-4" />
         <h2 className="font-bold text-xl mb-2">Access restricted</h2>
-        <p className="text-muted-foreground text-sm mb-2">
-          This panel is only available to cafe operators.
-        </p>
-        <p className="text-xs text-muted-foreground bg-muted rounded-xl px-4 py-3 max-w-xs">
-          To grant admin access, run this in Neon SQL Editor:<br />
-          <code className="font-mono text-[10px] break-all">
-            UPDATE users SET is_admin = true WHERE email = '{user?.email}';
-          </code>
-        </p>
+        <p className="text-sm text-muted-foreground">Admin only</p>
       </div>
     );
   }
 
-  const baseFiltered = filter === "active"
-    ? orders.filter((o) => ACTIVE_STATUSES.has(o.status))
-    : orders;
+  const displayOrders = (filter === "active" ? orders.filter((o) => ACTIVE_STATUSES.has(o.status)) : orders)
+    .filter((o) => !search || o.cafeName.toLowerCase().includes(search.toLowerCase()) || String(o.id).includes(search));
 
-  const displayOrders = baseFiltered
-    .filter((o) => matchesSearch(o, search))
-    .filter((o) => matchesTime(o, timeFilter));
-
-  const activeCount = orders.filter((o) => ACTIVE_STATUSES.has(o.status)).length;
-  const countByStatus = (s: string) => orders.filter((o) => o.status === s).length;
+  const filteredMenu = selectedCafeId ? menuItems.filter((m) => m.cafeId === selectedCafeId) : menuItems;
 
   return (
     <div className="pb-8">
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 pt-5 pb-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-bold text-2xl">Live Orders</h1>
-            <p className="text-sm text-muted-foreground">Cafe operator dashboard</p>
-          </div>
-          <div className={`flex items-center gap-2 text-xs font-bold px-3 py-2 rounded-full ${liveConnected ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
-            {liveConnected
-              ? <><span className="w-2 h-2 rounded-full bg-green-500 animate-ping inline-block" /> LIVE</>
-              : <><WifiOff className="w-3 h-3" /> Offline</>
-            }
+      {/* Tabs */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 pt-4 pb-3">
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="font-bold text-2xl">Admin</h1>
+          <div className={`flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-full ${liveConnected ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
+            {liveConnected ? <><span className="w-2 h-2 rounded-full bg-green-500 animate-ping" /> LIVE</> : <><WifiOff className="w-3 h-3" /> Offline</>}
           </div>
         </div>
-
-        <div className="grid grid-cols-4 gap-2">
-          {[
-            { key: "placed",           label: "New",       color: "text-red-600 bg-red-50" },
-            { key: "confirmed",        label: "Confirmed", color: "text-blue-600 bg-blue-50" },
-            { key: "preparing",        label: "Preparing", color: "text-yellow-600 bg-yellow-50" },
-            { key: "out_for_delivery", label: "En Route",  color: "text-purple-600 bg-purple-50" },
-          ].map(({ key, label, color }) => (
-            <div key={key} className={`rounded-xl px-2 py-2 text-center ${color}`}>
-              <p className="font-bold text-xl">{countByStatus(key)}</p>
-              <p className="text-[10px] font-semibold leading-tight">{label}</p>
-            </div>
+        <div className="flex gap-2">
+          {([
+            { key: "orders" as Tab, label: "Orders", icon: <ShoppingBag className="w-4 h-4" /> },
+            { key: "dashboard" as Tab, label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
+            { key: "cafes" as Tab, label: "Cafes & Menu", icon: <Store className="w-4 h-4" /> },
+          ]).map((t) => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${tab === t.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+              {t.icon} {t.label}
+            </button>
           ))}
         </div>
+      </div>
 
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search by cafe, order #, item, or address…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-9 py-2.5 text-sm bg-muted rounded-xl border border-transparent focus:outline-none focus:border-primary/40 focus:bg-background transition-colors"
-          />
-          {search && (
-            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              <X className="w-4 h-4" />
+      {/* ── DASHBOARD ── */}
+      {tab === "dashboard" && stats && (
+        <div className="px-4 pt-4 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-card border rounded-2xl p-4">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs font-bold mb-1"><IndianRupee className="w-4 h-4" /> TODAY REVENUE</div>
+              <p className="text-3xl font-bold text-primary">₹{stats.todayRevenue.toLocaleString()}</p>
+            </div>
+            <div className="bg-card border rounded-2xl p-4">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs font-bold mb-1"><TrendingUp className="w-4 h-4" /> TOTAL REVENUE</div>
+              <p className="text-3xl font-bold">₹{stats.totalRevenue.toLocaleString()}</p>
+            </div>
+            <div className="bg-card border rounded-2xl p-4">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs font-bold mb-1"><ShoppingBag className="w-4 h-4" /> TODAY ORDERS</div>
+              <p className="text-3xl font-bold">{stats.todayOrders}</p>
+            </div>
+            <div className="bg-card border rounded-2xl p-4">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs font-bold mb-1"><Package className="w-4 h-4" /> ACTIVE</div>
+              <p className="text-3xl font-bold text-amber-600">{stats.activeOrders}</p>
+            </div>
+          </div>
+          <div className="bg-card border rounded-2xl p-4">
+            <p className="font-bold mb-3">Status Breakdown</p>
+            <div className="grid grid-cols-3 gap-2">
+              {Object.entries(stats.statusCounts).map(([status, count]) => (
+                <div key={status} className="bg-muted rounded-xl p-3 text-center">
+                  <p className="font-bold text-lg">{count}</p>
+                  <p className="text-[10px] text-muted-foreground capitalize">{status.replace(/_/g, " ")}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-card border rounded-2xl p-4 text-center">
+              <Store className="w-6 h-6 mx-auto mb-1 text-primary" />
+              <p className="font-bold text-2xl">{stats.totalCafes}</p>
+              <p className="text-xs text-muted-foreground">Cafes</p>
+            </div>
+            <div className="bg-card border rounded-2xl p-4 text-center">
+              <UtensilsCrossed className="w-6 h-6 mx-auto mb-1 text-primary" />
+              <p className="font-bold text-2xl">{stats.totalMenuItems}</p>
+              <p className="text-xs text-muted-foreground">Menu Items</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ORDERS ── */}
+      {tab === "orders" && (
+        <div className="px-4 pt-4 space-y-3">
+          <div className="flex gap-2 mb-2">
+            <button onClick={() => setFilter("active")} className={`flex-1 py-2 rounded-xl text-sm font-bold ${filter === "active" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>Active</button>
+            <button onClick={() => setFilter("all")} className={`flex-1 py-2 rounded-xl text-sm font-bold ${filter === "all" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>All</button>
+          </div>
+          <div className="relative mb-2">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search orders…" className="w-full pl-9 py-2.5 text-sm bg-muted rounded-xl outline-none" />
+          </div>
+          {loading && <div className="text-center py-12"><RefreshCw className="w-8 h-8 animate-spin mx-auto opacity-40" /></div>}
+          {!loading && displayOrders.length === 0 && (
+            <div className="text-center py-16"><Package className="w-16 h-16 mx-auto mb-4 opacity-30" /><p className="font-bold text-muted-foreground">No orders</p></div>
+          )}
+          {displayOrders.map((order) => {
+            const meta = STATUS_META[order.status] ?? STATUS_META.placed;
+            return (
+              <div key={order.id} className={`rounded-2xl border p-4 ${meta.bg} ${newOrderIds.has(order.id) ? "ring-2 ring-red-400" : ""}`}>
+                <div className="flex justify-between mb-2">
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full bg-white/70 ${meta.color}`}>{meta.icon} {meta.label}</span>
+                  <div className="text-right"><p className="font-bold">₹{order.total}</p><p className="text-xs text-muted-foreground">{timeAgo(order.createdAt)}</p></div>
+                </div>
+                <p className="font-bold text-sm">{order.cafeName} · #{order.id}</p>
+                <p className="text-xs text-muted-foreground mb-2">📍 {order.deliveryAddress}</p>
+                {order.items.map((item, i) => <p key={i} className="text-sm"><span className="font-semibold">{item.quantity}×</span> {item.name}</p>)}
+                {meta.next && (
+                  <button onClick={() => handleAdvance(order.id, meta.next!)} disabled={!!advancing[order.id]}
+                    className="w-full mt-3 bg-primary text-primary-foreground font-bold py-2.5 rounded-xl text-sm disabled:opacity-60">
+                    {advancing[order.id] ? "Updating…" : `→ ${NEXT_ACTION[order.status]}`}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── CAFES & MENU ── */}
+      {tab === "cafes" && (
+        <div className="px-4 pt-4 space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="font-bold text-lg">Cafes ({cafes.length})</h2>
+            <button onClick={() => setShowCafeForm(!showCafeForm)} className="flex items-center gap-1 bg-primary text-primary-foreground text-sm font-bold px-3 py-2 rounded-xl">
+              <Plus className="w-4 h-4" /> Add Cafe
             </button>
+          </div>
+
+          {showCafeForm && (
+            <div className="bg-card border rounded-2xl p-4 space-y-3">
+              <input placeholder="Cafe name *" value={cafeForm.name} onChange={(e) => setCafeForm({ ...cafeForm, name: e.target.value })} className="w-full bg-muted rounded-xl px-4 py-2.5 text-sm outline-none" />
+              <input placeholder="Area *" value={cafeForm.area} onChange={(e) => setCafeForm({ ...cafeForm, area: e.target.value })} className="w-full bg-muted rounded-xl px-4 py-2.5 text-sm outline-none" />
+              <input placeholder="Address *" value={cafeForm.address} onChange={(e) => setCafeForm({ ...cafeForm, address: e.target.value })} className="w-full bg-muted rounded-xl px-4 py-2.5 text-sm outline-none" />
+              <input placeholder="Description" value={cafeForm.description} onChange={(e) => setCafeForm({ ...cafeForm, description: e.target.value })} className="w-full bg-muted rounded-xl px-4 py-2.5 text-sm outline-none" />
+              <button onClick={createCafe} className="w-full bg-primary text-primary-foreground font-bold py-2.5 rounded-xl">Create Cafe</button>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {cafes.map((cafe) => (
+              <div key={cafe.id} className={`bg-card border rounded-2xl p-4 ${selectedCafeId === cafe.id ? "ring-2 ring-primary" : ""}`}>
+                <div className="flex justify-between items-start">
+                  <div className="flex-1 cursor-pointer" onClick={() => { setSelectedCafeId(cafe.id); fetchMenu(cafe.id); }}>
+                    <p className="font-bold">{cafe.name}</p>
+                    <p className="text-xs text-muted-foreground">{cafe.area} · {cafe.address}</p>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block ${cafe.isOpen ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                      {cafe.isOpen ? "Open" : "Closed"}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => toggleCafeOpen(cafe)} className="text-xs font-bold px-2 py-1 rounded-lg bg-muted">{cafe.isOpen ? "Close" : "Open"}</button>
+                    <button onClick={() => deleteCafe(cafe.id)} className="text-red-500"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {selectedCafeId && (
+            <div className="mt-4">
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="font-bold text-lg">Menu — {cafes.find((c) => c.id === selectedCafeId)?.name}</h2>
+                <button onClick={() => setShowMenuForm(!showMenuForm)} className="flex items-center gap-1 bg-accent text-accent-foreground text-sm font-bold px-3 py-2 rounded-xl">
+                  <Plus className="w-4 h-4" /> Add Item
+                </button>
+              </div>
+
+              {showMenuForm && (
+                <div className="bg-card border rounded-2xl p-4 space-y-3 mb-3">
+                  <input placeholder="Item name *" value={menuForm.name} onChange={(e) => setMenuForm({ ...menuForm, name: e.target.value })} className="w-full bg-muted rounded-xl px-4 py-2.5 text-sm outline-none" />
+                  <input placeholder="Price *" type="number" value={menuForm.price} onChange={(e) => setMenuForm({ ...menuForm, price: e.target.value })} className="w-full bg-muted rounded-xl px-4 py-2.5 text-sm outline-none" />
+                  <select value={menuForm.category} onChange={(e) => setMenuForm({ ...menuForm, category: e.target.value })} className="w-full bg-muted rounded-xl px-4 py-2.5 text-sm outline-none">
+                    <option value="coffee">Coffee</option>
+                    <option value="tea">Tea</option>
+                    <option value="mojito">Mojito</option>
+                    <option value="smoothie">Smoothie</option>
+                    <option value="beverage">Beverage</option>
+                  </select>
+                  <button onClick={createMenuItem} className="w-full bg-primary text-primary-foreground font-bold py-2.5 rounded-xl">Add Item</button>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                {filteredMenu.map((item) => (
+                  <div key={item.id} className="bg-card border rounded-xl p-3 flex justify-between items-center">
+                    <div>
+                      <p className="font-bold text-sm">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">₹{item.price} · {item.category}</p>
+                    </div>
+                    <button onClick={() => deleteMenuItem(item.id)} className="text-red-500"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                ))}
+                {filteredMenu.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No menu items yet</p>}
+              </div>
+            </div>
           )}
         </div>
-
-        <div className="flex gap-2">
-          <div className="flex gap-1.5 flex-1">
-            <button
-              onClick={() => setFilter("active")}
-              className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${filter === "active" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}
-            >
-              Active ({activeCount})
-            </button>
-            <button
-              onClick={() => setFilter("all")}
-              className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${filter === "all" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}
-            >
-              All ({orders.length})
-            </button>
-          </div>
-          <select
-            value={timeFilter}
-            onChange={(e) => setTimeFilter(e.target.value as TimeFilter)}
-            className="px-3 py-2 rounded-xl text-sm font-medium bg-muted border-0 focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
-          >
-            <option value="all">All time</option>
-            <option value="today">Today</option>
-            <option value="hour">Last hour</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="px-4 pt-4 space-y-3">
-        {loading && (
-          <div className="text-center py-12 text-muted-foreground">
-            <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 opacity-40" />
-            <p>Loading orders…</p>
-          </div>
-        )}
-
-        {!loading && displayOrders.length === 0 && (
-          <div className="text-center py-16">
-            <Package className="w-16 h-16 mx-auto mb-4 text-muted-foreground/40" />
-            <p className="font-bold text-lg text-muted-foreground">
-              {search ? "No orders match your search" : filter === "active" ? "No active orders right now" : "No orders yet"}
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">
-              {search ? "Try a different search term" : liveConnected ? "New orders will appear here in real time" : "Connecting to live feed…"}
-            </p>
-          </div>
-        )}
-
-        {displayOrders.map((order) => (
-          <OrderCard
-            key={order.id}
-            order={order}
-            isNew={newOrderIds.has(order.id)}
-            onAdvance={handleAdvance}
-            advancing={!!advancing[order.id]}
-          />
-        ))}
-      </div>
+      )}
     </div>
   );
 }
