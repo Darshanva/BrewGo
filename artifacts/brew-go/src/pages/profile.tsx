@@ -1,8 +1,18 @@
-import { useAuth } from "@workspace/replit-auth-web";
+import { useEffect, useState } from "react";
 import { useGetMyRewards, getGetMyRewardsQueryKey } from "@workspace/api-client-react";
 import { Star, Trophy, Gift, ChevronRight, LogOut, Coffee } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+
+type LocalUser = {
+  id: string;
+  email?: string | null;
+  phone?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  profileImageUrl?: string | null;
+  isAdmin?: boolean;
+};
 
 const TIER_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   Bronze: { bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-300" },
@@ -12,7 +22,23 @@ const TIER_COLORS: Record<string, { bg: string; text: string; border: string }> 
 };
 
 export default function Profile() {
-  const { user, isLoading: authLoading, isAuthenticated, login, logout } = useAuth();
+  const [, setLocation] = useLocation();
+  const [user, setUser] = useState<LocalUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("user");
+    if (stored) {
+      try {
+        setUser(JSON.parse(stored));
+      } catch {
+        setUser(null);
+      }
+    }
+    setAuthLoading(false);
+  }, []);
+
+  const isAuthenticated = !!user;
 
   const { data: rewards, isLoading: rewardsLoading } = useGetMyRewards({
     query: {
@@ -20,6 +46,14 @@ export default function Profile() {
       enabled: isAuthenticated,
     },
   });
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setUser(null);
+    setLocation("/");
+    window.location.reload();
+  };
 
   if (authLoading) {
     return (
@@ -40,24 +74,23 @@ export default function Profile() {
         <p className="text-muted-foreground text-sm mb-6">
           Sign in to track your orders, earn BrewPoints, and unlock exclusive rewards
         </p>
-        <button
-          onClick={login}
-          className="bg-primary text-primary-foreground font-bold px-8 py-3.5 rounded-2xl hover:bg-primary/90 transition-colors shadow-lg"
-        >
-          Log in
-        </button>
+        <Link href="/login">
+          <button className="bg-primary text-primary-foreground font-bold px-8 py-3.5 rounded-2xl hover:bg-primary/90 transition-colors shadow-lg">
+            Log in
+          </button>
+        </Link>
+        <p className="mt-4 text-sm text-muted-foreground">
+          Don't have an account?{" "}
+          <Link href="/register" className="text-primary font-medium hover:underline">
+            Register
+          </Link>
+        </p>
       </div>
     );
   }
 
   const tier = rewards?.tier ?? "Bronze";
   const tierStyle = TIER_COLORS[tier] ?? TIER_COLORS.Bronze;
-  const progress = rewards
-    ? rewards.pointsToNextTier
-      ? Math.round(((rewards.lifetimePoints - (rewards.lifetimePoints - (rewards.pointsToNextTier))) / rewards.pointsToNextTier) * 100)
-      : 100
-    : 0;
-
   const progressPct = rewards?.pointsToNextTier
     ? Math.min(100, Math.round((rewards.lifetimePoints / (rewards.lifetimePoints + rewards.pointsToNextTier)) * 100))
     : 100;
@@ -77,7 +110,7 @@ export default function Profile() {
             <h1 className="font-bold text-xl">
               {user?.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : "BrewGo User"}
             </h1>
-            <p className="text-primary-foreground/70 text-sm">{user?.email}</p>
+            <p className="text-primary-foreground/70 text-sm">{user?.email || user?.phone}</p>
             <div className={`inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full text-xs font-bold border ${tierStyle.bg} ${tierStyle.text} ${tierStyle.border}`}>
               <Trophy className="w-3 h-3" />
               {tier} Member
@@ -100,7 +133,6 @@ export default function Profile() {
                 <Gift className="w-7 h-7 text-primary" />
               </div>
             </div>
-
             {rewards.nextTier && rewards.pointsToNextTier !== null && (
               <div>
                 <div className="flex justify-between text-xs font-medium text-muted-foreground mb-1.5">
@@ -115,14 +147,12 @@ export default function Profile() {
                 </div>
               </div>
             )}
-
             {!rewards.nextTier && (
               <div className="flex items-center gap-2 text-sm text-yellow-600 font-bold">
                 <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                 Platinum — Highest tier achieved!
               </div>
             )}
-
             <div className="mt-4 pt-4 border-t border-border flex justify-between text-sm">
               <div>
                 <p className="text-muted-foreground text-xs">Lifetime earned</p>
@@ -184,7 +214,6 @@ export default function Profile() {
             <ChevronRight className="w-5 h-5 text-muted-foreground" />
           </div>
         </Link>
-
         <button
           onClick={logout}
           className="w-full mt-3 flex items-center justify-center gap-2 text-red-500 font-bold py-4 rounded-2xl border border-red-200 hover:bg-red-50 transition-colors"
