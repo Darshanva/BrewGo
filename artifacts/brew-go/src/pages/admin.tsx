@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@workspace/replit-auth-web";
+import { Link } from "wouter";
 import {
   Wifi, WifiOff, Clock, ChefHat, Bike, CheckCircle, Package,
   AlertCircle, RefreshCw, Bell, Search, X, ShieldOff,
@@ -27,8 +27,12 @@ type AdminOrder = {
   updatedAt: string | null;
 };
 
-const STATUS_ORDER = ["placed", "confirmed", "preparing", "out_for_delivery", "delivered", "cancelled"] as const;
-type OrderStatus = typeof STATUS_ORDER[number];
+type LocalUser = {
+  id: string;
+  email?: string | null;
+  firstName?: string | null;
+  isAdmin?: boolean;
+};
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode; next: string | null }> = {
   placed:           { label: "New Order",        color: "text-red-700",    bg: "bg-red-50 border-red-200",       icon: <Bell className="w-4 h-4" />,        next: "confirmed" },
@@ -157,9 +161,11 @@ function OrderCard({
 }
 
 const ACTIVE_STATUSES = new Set(["placed", "confirmed", "preparing", "out_for_delivery"]);
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 export default function Admin() {
-  const { user, isAuthenticated, isLoading: authLoading, login } = useAuth();
+  const [user, setUser] = useState<LocalUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [newOrderIds, setNewOrderIds] = useState<Set<number>>(new Set());
@@ -172,17 +178,33 @@ export default function Admin() {
   const { toast } = useToast();
   const closedRef = useRef(false);
 
+  useEffect(() => {
+    const stored = localStorage.getItem("user");
+    if (stored) {
+      try {
+        setUser(JSON.parse(stored));
+      } catch {
+        setUser(null);
+      }
+    }
+    setAuthLoading(false);
+  }, []);
+
+  const isAuthenticated = !!user;
+  const isAdmin = isAuthenticated && !!user?.isAdmin;
+
   const fetchOrders = useCallback(async () => {
-    const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
-    const res = await fetch(`${baseUrl}/api/admin/orders`, { credentials: "include" });
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${API_BASE}/api/admin/orders`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: "include",
+    });
     if (res.ok) {
       const data = await res.json() as AdminOrder[];
       setOrders(data);
     }
     setLoading(false);
   }, []);
-
-  const isAdmin = isAuthenticated && user?.isAdmin;
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -192,8 +214,7 @@ export default function Admin() {
   useEffect(() => {
     if (!isAdmin) return;
     closedRef.current = false;
-    const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
-    const es = new EventSource(`${baseUrl}/api/admin/orders/stream`);
+    const es = new EventSource(`${API_BASE}/api/admin/orders/stream`);
 
     es.onopen = () => { if (!closedRef.current) setLiveConnected(true); };
     es.onerror = () => { if (!closedRef.current) setLiveConnected(false); };
@@ -238,15 +259,18 @@ export default function Admin() {
       es.close();
       setLiveConnected(false);
     };
-  }, [isAdmin]);
+  }, [isAdmin, toast]);
 
   async function handleAdvance(orderId: number, nextStatus: string) {
     setAdvancing((p) => ({ ...p, [orderId]: true }));
     try {
-      const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
-      await fetch(`${baseUrl}/api/orders/${orderId}/status`, {
+      const token = localStorage.getItem("token");
+      await fetch(`${API_BASE}/api/orders/${orderId}/status`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         credentials: "include",
         body: JSON.stringify({ status: nextStatus }),
       });
@@ -274,12 +298,11 @@ export default function Admin() {
         <ShieldOff className="w-16 h-16 text-muted-foreground/40 mb-4" />
         <h2 className="font-bold text-xl mb-2">Sign in required</h2>
         <p className="text-muted-foreground text-sm mb-6">You need to be logged in to access the admin panel.</p>
-        <button
-          onClick={login}
-          className="bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl hover:bg-primary/90 transition-colors"
-        >
-          Sign in
-        </button>
+        <Link href="/login">
+          <button className="bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl hover:bg-primary/90 transition-colors">
+            Sign in
+          </button>
+        </Link>
       </div>
     );
   }
@@ -293,8 +316,10 @@ export default function Admin() {
           This panel is only available to cafe operators.
         </p>
         <p className="text-xs text-muted-foreground bg-muted rounded-xl px-4 py-3 max-w-xs">
-          To grant yourself admin access, add your user ID to the <code className="font-mono">ADMIN_USER_IDS</code> secret in Replit.<br />
-          Your ID: <code className="font-mono font-bold select-all">{user?.id}</code>
+          To grant admin access, run this in Neon SQL Editor:<br />
+          <code className="font-mono text-[10px] break-all">
+            UPDATE users SET is_admin = true WHERE email = '{user?.email}';
+          </code>
         </p>
       </div>
     );
@@ -313,9 +338,7 @@ export default function Admin() {
 
   return (
     <div className="pb-8">
-      {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 pt-5 pb-4 space-y-3">
-        {/* Title row */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="font-bold text-2xl">Live Orders</h1>
@@ -329,7 +352,6 @@ export default function Admin() {
           </div>
         </div>
 
-        {/* Status stats row */}
         <div className="grid grid-cols-4 gap-2">
           {[
             { key: "placed",           label: "New",       color: "text-red-600 bg-red-50" },
@@ -344,7 +366,6 @@ export default function Admin() {
           ))}
         </div>
 
-        {/* Search bar */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
@@ -361,9 +382,7 @@ export default function Admin() {
           )}
         </div>
 
-        {/* Filter tabs row */}
         <div className="flex gap-2">
-          {/* Active / All */}
           <div className="flex gap-1.5 flex-1">
             <button
               onClick={() => setFilter("active")}
@@ -378,8 +397,6 @@ export default function Admin() {
               All ({orders.length})
             </button>
           </div>
-
-          {/* Time filter */}
           <select
             value={timeFilter}
             onChange={(e) => setTimeFilter(e.target.value as TimeFilter)}
@@ -392,7 +409,6 @@ export default function Admin() {
         </div>
       </div>
 
-      {/* Order list */}
       <div className="px-4 pt-4 space-y-3">
         {loading && (
           <div className="text-center py-12 text-muted-foreground">
