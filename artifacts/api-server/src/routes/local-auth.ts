@@ -21,7 +21,6 @@ router.post("/auth/register", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Email or phone is required" });
     }
 
-    // Check if user already exists
     const existing = await db
       .select()
       .from(usersTable)
@@ -51,7 +50,12 @@ router.post("/auth/register", async (req: Request, res: Response) => {
       .returning();
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, isAdmin: user.isAdmin },
+      {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+        cafeId: user.cafeId ?? null,
+      },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES }
     );
@@ -65,6 +69,7 @@ router.post("/auth/register", async (req: Request, res: Response) => {
         firstName: user.firstName,
         lastName: user.lastName,
         isAdmin: user.isAdmin,
+        cafeId: user.cafeId ?? null,
       },
     });
   } catch (err) {
@@ -103,7 +108,12 @@ router.post("/auth/login", async (req: Request, res: Response) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, isAdmin: user.isAdmin },
+      {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+        cafeId: user.cafeId ?? null,
+      },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES }
     );
@@ -117,6 +127,7 @@ router.post("/auth/login", async (req: Request, res: Response) => {
         firstName: user.firstName,
         lastName: user.lastName,
         isAdmin: user.isAdmin,
+        cafeId: user.cafeId ?? null,
       },
     });
   } catch (err) {

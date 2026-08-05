@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Coffee, Search, ShoppingBag, Receipt, User, LayoutDashboard } from "lucide-react";
+import { Coffee, Search, ShoppingBag, Receipt, User, LayoutDashboard, Store } from "lucide-react";
 import { useCart } from "@/lib/cart-context";
 import { useEffect, useState } from "react";
 
@@ -10,6 +10,7 @@ type LocalUser = {
   lastName?: string | null;
   profileImageUrl?: string | null;
   isAdmin?: boolean;
+  cafeId?: number | null;
 };
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -25,6 +26,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       } catch {
         setUser(null);
       }
+    } else {
+      setUser(null);
     }
   }, [location]);
 
@@ -51,6 +54,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <NavItem href="/profile" icon={<User className="w-5 h-5" />} label="Profile & Rewards" active={location === "/profile"} />
           {user?.isAdmin && (
             <NavItem href="/admin" icon={<LayoutDashboard className="w-5 h-5" />} label="Admin Panel" active={location === "/admin"} />
+          )}
+          {user?.cafeId && !user?.isAdmin && (
+            <NavItem href="/owner" icon={<Store className="w-5 h-5" />} label="My Cafe" active={location === "/owner"} />
           )}
         </nav>
         {/* Auth + Cart */}

@@ -16,6 +16,7 @@ import Profile from "@/pages/profile";
 import Admin from "@/pages/admin";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
+import Owner from "@/pages/owner";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ function Router() {
         <Route path="/orders/:id" component={OrderTracking} />
         <Route path="/profile" component={Profile} />
         <Route path="/admin" component={Admin} />
+        <Route path="/owner" component={Owner} />
         <Route path="/login" component={Login} />
         <Route path="/register" component={Register} />
         <Route component={NotFound} />
