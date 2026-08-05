@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Coffee, Search, ShoppingBag, Receipt, User, LayoutDashboard, Store } from "lucide-react";
 import { useCart } from "@/lib/cart-context";
 import { useEffect, useState } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type LocalUser = {
   id: string;
@@ -41,11 +42,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-[100dvh] flex flex-col bg-background pb-[72px] md:pb-0 md:pl-64">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 fixed inset-y-0 left-0 bg-card border-r border-border">
-        <div className="p-6">
+        <div className="p-6 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold text-xl">B</div>
             <span className="font-bold text-2xl tracking-tight text-foreground">BrewGo</span>
           </Link>
+          <ThemeToggle />
         </div>
         <nav className="flex-1 px-4 space-y-2 mt-4">
           <NavItem href="/" icon={<Coffee className="w-5 h-5" />} label="Home" active={location === "/"} />
