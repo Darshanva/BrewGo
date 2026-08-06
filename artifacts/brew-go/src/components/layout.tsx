@@ -43,12 +43,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 fixed inset-y-0 left-0 bg-card border-r border-border">
         <div className="p-6 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold text-xl">B</div>
-            <span className="font-bold text-2xl tracking-tight text-foreground">BrewGo</span>
-          </Link>
-          <ThemeToggle />
-        </div>
+  <Link href="/" className="flex items-center gap-2">
+    <img src="/logo.png" alt="BrewGo" className="w-9 h-9 object-contain" />
+    <span className="font-bold text-2xl tracking-tight text-foreground">BrewGo</span>
+  </Link>
+  <ThemeToggle />
+</div>
         <nav className="flex-1 px-4 space-y-2 mt-4">
           <NavItem href="/" icon={<Coffee className="w-5 h-5" />} label="Home" active={location === "/"} />
           <NavItem href="/search" icon={<Search className="w-5 h-5" />} label="Search" active={location === "/search"} />
