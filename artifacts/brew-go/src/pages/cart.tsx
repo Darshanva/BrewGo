@@ -141,8 +141,7 @@ export default function Cart() {
   }
 
   return (
-    <div className="pb-40">
-      <div className="px-4 pt-6 pb-4 border-b border-border">
+<div className="pb-48 md:pb-40">      <div className="px-4 pt-6 pb-4 border-b border-border">
         <h1 className="text-2xl font-bold">Your Cart</h1>
         {items[0] && (
           <p className="text-muted-foreground text-sm mt-1">from {items[0].cafeName}</p>
@@ -304,8 +303,7 @@ export default function Cart() {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 md:left-64 p-4 bg-background/90 backdrop-blur-md border-t border-border z-20">
-        <button
+<div className="fixed bottom-[72px] md:bottom-0 left-0 right-0 md:left-64 p-4 bg-background/90 backdrop-blur-md border-t border-border z-20">        <button
           onClick={handlePlaceOrder}
           disabled={createOrder.isPending}
           className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-2xl text-base hover:bg-primary/90 transition-colors disabled:opacity-60 shadow-xl"
