@@ -8,6 +8,7 @@ import ordersRouter from "./orders";
 import discoveryRouter from "./discovery";
 import rewardsRouter from "./rewards";
 import adminRouter from "./admin";
+import addressesRouter from "./addresses";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(ordersRouter);
 router.use(discoveryRouter);
 router.use(rewardsRouter);
 router.use(adminRouter);
+router.use(addressesRouter);
 
 export default router;
