@@ -99,8 +99,8 @@ export default function CafeDetail() {
   if (!cafe) return <div className="p-8 text-center text-muted-foreground">Cafe not found</div>;
 
   return (
-    <div className="pb-24">
-      <div className="relative h-56">
+<div className="pb-40 md:pb-24">
+        <div className="relative h-56">
         <img src={cafe.imageUrl} alt={cafe.name} className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
         <Link href="/cafes" className="absolute top-4 left-4 w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/60 transition-colors">
@@ -289,8 +289,7 @@ export default function CafeDetail() {
       </div>
 
       {cartItems.length > 0 && cartItems[0].cafeId === id && (
-        <div className="fixed bottom-0 left-0 right-0 md:left-64 p-4 bg-background/80 backdrop-blur-md border-t border-border z-20">
-          <Link href="/cart">
+<div className="fixed bottom-[72px] md:bottom-0 left-0 right-0 md:left-64 p-4 bg-background/80 backdrop-blur-md border-t border-border z-20">          <Link href="/cart">
             <div className="bg-primary text-primary-foreground rounded-2xl px-5 py-4 flex items-center justify-between shadow-xl">
               <div className="flex items-center gap-3">
                 <ShoppingBag className="w-5 h-5" />
