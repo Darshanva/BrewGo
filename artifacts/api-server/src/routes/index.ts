@@ -11,7 +11,6 @@ import adminRouter from "./admin";
 import addressesRouter from "./addresses";
 
 const router: IRouter = Router();
-
 router.use(healthRouter);
 router.use(authRouter);
 router.use(localAuthRouter);
@@ -22,5 +21,4 @@ router.use(discoveryRouter);
 router.use(rewardsRouter);
 router.use(adminRouter);
 router.use(addressesRouter);
-
 export default router;
