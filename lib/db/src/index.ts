@@ -12,11 +12,4 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 export const db = drizzle(pool, { schema });
-
 export * from "./schema";
-export * from "./cafes";
-export * from "./menu-items";
-export * from "./orders";
-export * from "./reviews";
-export * from "./auth";
-export * from "./addresses";
