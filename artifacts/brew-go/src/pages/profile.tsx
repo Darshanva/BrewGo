@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useGetMyRewards, getGetMyRewardsQueryKey } from "@workspace/api-client-react";
-import { Star, Trophy, Gift, ChevronRight, LogOut, Coffee } from "lucide-react";
+import { Star, Trophy, Gift, ChevronRight, LogOut, Coffee, Heart } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link, useLocation } from "wouter";
 
@@ -208,12 +208,21 @@ export default function Profile() {
       )}
 
       <div className="px-4 mt-5">
-        <Link href="/orders">
-          <div className="bg-card border border-border rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:bg-muted/50 transition-colors">
-            <span className="font-semibold">Order History</span>
-            <ChevronRight className="w-5 h-5 text-muted-foreground" />
-          </div>
-        </Link>
+       <Link href="/favorites">
+  <div className="bg-card border border-border rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:bg-muted/50 transition-colors mb-3">
+    <div className="flex items-center gap-3">
+      <Heart className="w-5 h-5 text-red-500 fill-red-500" />
+      <span className="font-semibold">Favorites</span>
+    </div>
+    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+  </div>
+</Link>
+<Link href="/orders">
+  <div className="bg-card border border-border rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:bg-muted/50 transition-colors">
+    <span className="font-semibold">Order History</span>
+    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+  </div>
+</Link>
         <button
           onClick={logout}
           className="w-full mt-3 flex items-center justify-center gap-2 text-red-500 font-bold py-4 rounded-2xl border border-red-200 hover:bg-red-50 transition-colors"
