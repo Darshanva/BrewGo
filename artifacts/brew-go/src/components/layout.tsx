@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Coffee, Search, ShoppingBag, Receipt, User, LayoutDashboard, Store } from "lucide-react";
+import { Coffee, Search, ShoppingBag, Receipt, User, LayoutDashboard, Store, Heart } from "lucide-react";
 import { useCart } from "@/lib/cart-context";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -43,16 +43,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 fixed inset-y-0 left-0 bg-card border-r border-border">
         <div className="p-6 flex items-center justify-between">
-  <Link href="/" className="flex items-center gap-2">
-    <img src="/logo.png" alt="BrewGo" className="w-9 h-9 object-contain" />
-    <span className="font-bold text-2xl tracking-tight text-foreground">BrewGo</span>
-  </Link>
-  <ThemeToggle />
-</div>
+          <Link href="/" className="flex items-center gap-2">
+            <img src="/logo.png" alt="BrewGo" className="w-9 h-9 object-contain" />
+            <span className="font-bold text-2xl tracking-tight text-foreground">BrewGo</span>
+          </Link>
+          <ThemeToggle />
+        </div>
         <nav className="flex-1 px-4 space-y-2 mt-4">
           <NavItem href="/" icon={<Coffee className="w-5 h-5" />} label="Home" active={location === "/"} />
           <NavItem href="/search" icon={<Search className="w-5 h-5" />} label="Search" active={location === "/search"} />
           <NavItem href="/orders" icon={<Receipt className="w-5 h-5" />} label="Orders" active={location.startsWith("/orders")} />
+          <NavItem href="/favorites" icon={<Heart className="w-5 h-5" />} label="Favorites" active={location === "/favorites"} />
           <NavItem href="/profile" icon={<User className="w-5 h-5" />} label="Profile & Rewards" active={location === "/profile"} />
           {user?.isAdmin && (
             <NavItem href="/admin" icon={<LayoutDashboard className="w-5 h-5" />} label="Admin Panel" active={location === "/admin"} />
@@ -61,7 +62,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <NavItem href="/owner" icon={<Store className="w-5 h-5" />} label="My Cafe" active={location === "/owner"} />
           )}
         </nav>
-        {/* Auth + Cart */}
         <div className="p-4 space-y-3">
           {!isAuthenticated ? (
             <Link href="/login">
@@ -103,12 +103,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col w-full max-w-3xl mx-auto">
         {children}
       </main>
 
-      {/* Mobile Bottom Nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[72px] bg-card border-t border-border flex items-center justify-around px-2 z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
         <MobileNavItem href="/" icon={<Coffee />} label="Home" active={location === "/"} />
         <MobileNavItem href="/search" icon={<Search />} label="Search" active={location === "/search"} />

@@ -22,4 +22,5 @@ router.use(discoveryRouter);
 router.use(rewardsRouter);
 router.use(adminRouter);
 router.use(addressesRouter);
+router.use(favoritesRouter);
 export default router;

@@ -17,6 +17,7 @@ import Admin from "@/pages/admin";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
 import Owner from "@/pages/owner";
+import Favorites from "@/pages/favorites";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ function Router() {
         <Route path="/owner" component={Owner} />
         <Route path="/login" component={Login} />
         <Route path="/register" component={Register} />
+        <Route path="/favorites" component={Favorites} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
