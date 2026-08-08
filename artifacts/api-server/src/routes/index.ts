@@ -9,6 +9,7 @@ import discoveryRouter from "./discovery";
 import rewardsRouter from "./rewards";
 import adminRouter from "./admin";
 import addressesRouter from "./addresses";
+import favoritesRouter from "./favorites";
 
 const router: IRouter = Router();
 router.use(healthRouter);
